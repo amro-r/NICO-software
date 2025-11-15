@@ -50,11 +50,27 @@ class AbstractHand(object):
             self.prefix = "r_"
 
         self.vrep = vrep
-        # get hand motor accessors from robot
+        # get hand motor accessors from robot (tolerate partially missing hands)
+        self.board = None
         if not vrep:
-            self.board = getattr(robot, self.prefix + "virtualhand_x")
+            try:
+                if hasattr(robot, self.prefix + "virtualhand_x"):
+                    self.board = getattr(robot, self.prefix + "virtualhand_x")
+                else:
+                    self.logger.warning(
+                        "{}virtualhand_x not present on robot, disabling current monitoring".format(self.prefix)
+                    )
+            except Exception:
+                # Be robust to any unexpected robot attribute errors
+                self.board = None
         for motor in self.current_ports.keys():
-            setattr(self, motor, getattr(robot, self.prefix + motor))
+            attr_name = self.prefix + motor
+            if hasattr(robot, attr_name):
+                setattr(self, motor, getattr(robot, attr_name))
+            else:
+                self.logger.warning(
+                    "{} not present on robot, skipping accessor for {}".format(attr_name, motor)
+                )
 
         # genereate named methods for poses
         def add_pose_method(pose):
@@ -75,7 +91,8 @@ class AbstractHand(object):
             zip(self.sensitive_motors, ["idle"] * len(self.sensitive_motors))
         )
 
-        if monitorCurrents and not vrep:
+        # Only start current monitoring if a board is available
+        if monitorCurrents and not vrep and self.board is not None:
             t = threading.Thread(target=self._current_check)
             t.daemon = True
             t.start()
@@ -194,6 +211,9 @@ class AbstractHand(object):
         """
 
         if self.isHandMotor(jointname):
+            if getattr(self, "board", None) is None:
+                self.logger.warning("Hand board not available - cannot read currents")
+                return 0
             return self.board.present_motor_currents[self.current_ports[jointname[2:]]]
 
         self.logger.warning(
@@ -210,6 +230,9 @@ class AbstractHand(object):
         """
         if self.vrep:
             self.logger.warn("Vrep simulation does not support Palm IR sensor.")
+            return 0
+        elif getattr(self, "board", None) is None:
+            self.logger.warn("Hand board not available")
             return 0
         elif self.board.palm_sensor_installed:
             return self.board.palm_sensor_reading

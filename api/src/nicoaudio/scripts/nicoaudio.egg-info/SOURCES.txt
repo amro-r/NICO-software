@@ -1,0 +1,13 @@
+setup.py
+scripts/nicoaudio/AudioPlayer.py
+scripts/nicoaudio/AudioRecorder.py
+scripts/nicoaudio/TextToSpeech.py
+scripts/nicoaudio/__init__.py
+scripts/nicoaudio/pulse_audio_recorder.py
+scripts/nicoaudio.egg-info/PKG-INFO
+scripts/nicoaudio.egg-info/SOURCES.txt
+scripts/nicoaudio.egg-info/dependency_links.txt
+scripts/nicoaudio.egg-info/requires.txt
+scripts/nicoaudio.egg-info/top_level.txt
+scripts/nicoaudio/_nicoaudio_internal/__init__.py
+scripts/nicoaudio/_nicoaudio_internal/record_sound.py

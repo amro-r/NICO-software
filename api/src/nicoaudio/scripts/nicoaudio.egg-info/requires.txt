@@ -1,0 +1,7 @@
+audiotsm
+numpy==1.21.6
+pydub
+pyaudio
+pyalsaaudio
+requests
+TTS==0.9.0

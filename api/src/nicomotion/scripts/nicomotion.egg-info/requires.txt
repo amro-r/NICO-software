@@ -1,0 +1,5 @@
+math3d
+transforms3d
+numpy
+matplotlib
+gaikpy

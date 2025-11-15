@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: nicotouch
+Version: 1.0
+Summary: NICO api package to access touch sensors
+Author: Connor Gaede
+Author-email: 4gaede@informatik.uni-hamburg.de

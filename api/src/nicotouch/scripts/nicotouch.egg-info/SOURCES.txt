@@ -1,0 +1,10 @@
+setup.py
+scripts/nicotouch/OptoforceMultichannel.py
+scripts/nicotouch/__init__.py
+scripts/nicotouch/optoforcesensors.py
+scripts/nicotouch.egg-info/PKG-INFO
+scripts/nicotouch.egg-info/SOURCES.txt
+scripts/nicotouch.egg-info/dependency_links.txt
+scripts/nicotouch.egg-info/top_level.txt
+scripts/nicotouch/_nicotouch_internal/__init__.py
+scripts/nicotouch/_nicotouch_internal/optoforce.py
