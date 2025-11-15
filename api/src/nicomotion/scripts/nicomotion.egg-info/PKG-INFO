@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Name: nicomotion
+Version: 1.0
+Summary: NICO api package for motion related modules
+Author: Connor Gaede
+Author-email: 4gaede@informatik.uni-hamburg.de
+Requires-Dist: math3d
+Requires-Dist: transforms3d
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: gaikpy

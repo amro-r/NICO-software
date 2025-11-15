@@ -1,0 +1,4 @@
+matplotlib
+numpy
+pillow
+posix_ipc

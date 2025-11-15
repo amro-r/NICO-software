@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Name: nicoface
+Version: 1.0
+Summary: NICO api package for face expressions
+Author: Connor Gaede
+Author-email: 4gaede@informatik.uni-hamburg.de
+Requires-Dist: matplotlib
+Requires-Dist: numpy
+Requires-Dist: pillow
+Requires-Dist: posix_ipc

@@ -1,0 +1,10 @@
+setup.py
+scripts/nicoface/CapacitiveSensors.py
+scripts/nicoface/FaceExpression.py
+scripts/nicoface/SerialConnectionManager.py
+scripts/nicoface/__init__.py
+scripts/nicoface.egg-info/PKG-INFO
+scripts/nicoface.egg-info/SOURCES.txt
+scripts/nicoface.egg-info/dependency_links.txt
+scripts/nicoface.egg-info/requires.txt
+scripts/nicoface.egg-info/top_level.txt

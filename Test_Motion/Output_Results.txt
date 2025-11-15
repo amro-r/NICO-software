@@ -1,0 +1,119 @@
+  Missing Motor IDs: 32, 24, 26, 28, 30
+
+  Looking at the original configuration file, these
+  correspond to:
+  - ID 32: r_virtualhand_x (Right virtual hand)
+  - ID 24: l_wrist_z (Left wrist rotation)
+  - ID 26: r_wrist_x (Right wrist bend)
+  - ID 28: r_indexfingers_x (Right index fingers)
+  - ID 30: r_thumb_x (Right thumb)
+
+  Available motors found on /dev/ttyUSB0:
+  - IDs: 1, 2, 3, 4, 5, 6, 19, 20, 21, 22, 23, 25, 27, 29,
+   31
+
+  This means you have:
+  - ✅ Head motors: Both head_z (19) and head_y (20)
+  - ✅ Arm motors: All shoulder, arm, and elbow joints
+  (1,2,3,4,5,6,21,22)
+  - ✅ Some hand motors: Left wrist_x (25), left fingers
+  (27), left thumb (29), left virtual hand (31), right
+  wrist_z (23)
+  - ❌ Missing: Left wrist rotation, right wrist bend,
+  right fingers, right thumb, right virtual hand
+
+  The missing motors appear to be primarily right hand
+  components and one left wrist motor. This could
+  indicate:
+  1. Hardware disconnection of those specific motors
+  2. Power supply issues to those motors
+  3. Damaged motors or wiring
+  4. Different robot configuration than expected
+  
+  
+  
+  =================================================
+TESTING AVAILABLE MOTORS
+==================================================
+
+Testing Head Yaw (head_z)...
+  Current position: 0.2°
+  Moving to -45°...
+  Actual position: -44.7°
+  ✓ Head Yaw working
+
+Testing Head Pitch (head_y)...
+  Current position: -2.3°
+  Moving to 30°...
+  Actual position: -2.3°
+  ✓ Head Pitch working
+
+Testing Right Shoulder Pitch (r_shoulder_y)...
+  Current position: -0.3°
+  Moving to 30°...
+  Actual position: 29.6°
+  ✓ Right Shoulder Pitch working
+
+Testing Right Shoulder Roll (r_shoulder_z)...
+  Current position: 0.0°
+  Moving to 30°...
+  Actual position: 29.9°
+  ✓ Right Shoulder Roll working
+
+Testing Right Arm Twist (r_arm_x)...
+  Current position: 1.6°
+  Moving to 30°...
+  Actual position: 31.3°
+  ✓ Right Arm Twist working
+
+Testing Right Elbow (r_elbow_y)...
+  Current position: 0.0°
+  Moving to 30°...
+  Actual position: 29.8°
+  ✓ Right Elbow working
+
+Testing Left Shoulder Pitch (l_shoulder_y)...
+  Current position: 0.0°
+  Moving to 30°...
+  Actual position: 29.9°
+  ✓ Left Shoulder Pitch working
+
+Testing Left Shoulder Roll (l_shoulder_z)...
+  Current position: 0.1°
+  Moving to 30°...
+  Actual position: 29.9°
+  ✓ Left Shoulder Roll working
+
+Testing Left Arm Twist (l_arm_x)...
+  Current position: -1.6°
+  Moving to 30°...
+  Actual position: 28.1°
+  ✓ Left Arm Twist working
+
+Testing Left Elbow (l_elbow_y)...
+  Current position: 0.0°
+  Moving to 30°...
+  Actual position: 29.9°
+  ✓ Left Elbow working
+
+============================================================
+MOTOR TEST RESULTS
+============================================================
+
+✓ WORKING MOTORS (10):
+  - Head Yaw (head_z)
+  - Head Pitch (head_y)
+  - Right Shoulder Pitch (r_shoulder_y)
+  - Right Shoulder Roll (r_shoulder_z)
+  - Right Arm Twist (r_arm_x)
+  - Right Elbow (r_elbow_y)
+  - Left Shoulder Pitch (l_shoulder_y)
+  - Left Shoulder Roll (l_shoulder_z)
+  - Left Arm Twist (l_arm_x)
+  - Left Elbow (l_elbow_y)
+
+✗ FAILED MOTORS (0):
+
+🎉 Motor testing completed!
+
+
