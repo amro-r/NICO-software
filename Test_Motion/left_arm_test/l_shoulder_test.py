@@ -55,7 +55,7 @@ def test_left_shoulder():
         
         # Test Left Shoulder Roll (l_shoulder_z)
         print("\n--- Left Shoulder Roll Test ---")
-        print("Motor: l_shoulder_z (ID: 21)")
+        print("Motor: l_shoulder_z (ID: 22)")
         current = motion.getAngle("l_shoulder_z")
         print(f"Current position: {current:.1f}°")
         

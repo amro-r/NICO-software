@@ -16,8 +16,8 @@
 | 6 | l_elbow_y | Left Elbow | ✅ Perfect | MX-64, 11.8V, 36°C |
 | 19 | head_z | Head Yaw (L/R) | ✅ Perfect | MX-64, 11.7V, 39°C |
 | 20 | head_y | Head Pitch (U/D) | ✅ Perfect | MX-64, 11.5V, 59°C |
-| 21 | l_shoulder_z | Left Shoulder Roll | ✅ Perfect | MX-64, 11.7V, 37°C |
-| 22 | r_shoulder_z | Right Shoulder Roll | ✅ Perfect | MX-64, 11.7V, 37°C |
+| 21 | r_shoulder_z | Right Shoulder Roll | ✅ Perfect | MX-64, 11.7V, 37°C |
+| 22 | l_shoulder_z | Left Shoulder Roll | ✅ Perfect | MX-64, 11.7V, 37°C |
 
 ### ✅ Hand Motors (5/5) - Functional with Notes
 | Motor ID | Joint Name | Description | Status | Notes |

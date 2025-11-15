@@ -11,13 +11,13 @@ All core head and arm motors are functional and responsive:
 
 #### Right Arm Motors (4/4 working)
 - **r_shoulder_y** (ID: 1) - Right Shoulder Pitch ✓
-- **r_shoulder_z** (ID: 22) - Right Shoulder Roll ✓
+- **r_shoulder_z** (ID: 21) - Right Shoulder Roll ✓
 - **r_arm_x** (ID: 3) - Right Arm Twist ✓
 - **r_elbow_y** (ID: 5) - Right Elbow ✓
 
 #### Left Arm Motors (4/4 working)
 - **l_shoulder_y** (ID: 2) - Left Shoulder Pitch ✓
-- **l_shoulder_z** (ID: 21) - Left Shoulder Roll ✓
+- **l_shoulder_z** (ID: 22) - Left Shoulder Roll ✓
 - **l_arm_x** (ID: 4) - Left Arm Twist ✓
 - **l_elbow_y** (ID: 6) - Left Elbow ✓
 

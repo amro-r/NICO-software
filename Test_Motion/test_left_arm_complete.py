@@ -29,7 +29,7 @@ class LeftArmTest:
         self.left_arm_motors = {
             # Core arm motors (available via Motion class)
             2: {'name': 'l_shoulder_y', 'description': 'Left Shoulder Pitch', 'type': 'core', 'range': [-179, 180]},
-            21: {'name': 'l_shoulder_z', 'description': 'Left Shoulder Roll', 'type': 'core', 'range': [-125, 100]},
+            22: {'name': 'l_shoulder_z', 'description': 'Left Shoulder Roll', 'type': 'core', 'range': [-125, 100]},
             4: {'name': 'l_arm_x', 'description': 'Left Arm Twist', 'type': 'core', 'range': [-75, 140]},
             6: {'name': 'l_elbow_y', 'description': 'Left Elbow Pitch', 'type': 'core', 'range': [-100, 100]},
             
@@ -78,7 +78,7 @@ class LeftArmTest:
             # Safe test angles for each motor
             if motor_id == 2:  # shoulder pitch
                 test_angles = [0, 30, -30, 0]
-            elif motor_id == 21:  # shoulder roll
+            elif motor_id == 22:  # shoulder roll
                 test_angles = [0, 30, -30, 0]
             elif motor_id == 4:  # arm twist
                 test_angles = [0, 30, -30, 0]

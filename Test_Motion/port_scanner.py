@@ -194,8 +194,8 @@ class PortScanner:
             6: "l_elbow_y",
             19: "head_z",
             20: "head_y",
-            21: "l_shoulder_z",
-            22: "r_shoulder_z",
+            21: "r_shoulder_z",
+            22: "l_shoulder_z",
             23: "r_wrist_z",
             24: "l_wrist_z",  # Missing
             25: "l_wrist_x",

@@ -32,7 +32,7 @@ Systematic testing of left and right arm components to identify malfunctioning m
 #### Test 1: Left Shoulder Test
 **Script:** `left_arm_test/l_shoulder_test.py`  
 **Status:** ✅ COMPLETED  
-**Motors Tested:** l_shoulder_y (ID: 2), l_shoulder_z (ID: 21), l_arm_x (ID: 4)  
+**Motors Tested:** l_shoulder_y (ID: 2), l_shoulder_z (ID: 22), l_arm_x (ID: 4)  
 
 **Results:**
 2 motors ran successfully yaw (left-right) and pitch (up-down). The roll (twist) motor didn't run
@@ -73,7 +73,7 @@ Also, during the test, when the YAW motor was running, the RIGHT shoulder YAW al
 #### Test 5: Right Shoulder Test
 **Script:** `right_arm_test/r_shoulder_test.py`  
 **Status:** ✅ COMPLETED 
-**Motors Tested:** r_shoulder_y (ID: 1), r_shoulder_z (ID: 22), r_arm_x (ID: 3)  
+**Motors Tested:** r_shoulder_y (ID: 1), r_shoulder_z (ID: 21), r_arm_x (ID: 3)  
 
 **Results:**
 - Roll and pitch ran successfully, Yaw didn't run, instead the left yaw motor ran.

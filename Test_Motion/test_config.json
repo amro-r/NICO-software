@@ -50,7 +50,7 @@
         },
         "l_shoulder_z": {
             "angle_limit": [-125, 100],
-            "id": 21,
+            "id": 22,
             "offset": 0.0,
             "orientation": "direct",
             "type": "MX-64"
@@ -78,7 +78,7 @@
         },
         "r_shoulder_z": {
             "angle_limit": [-100, 125],
-            "id": 22,
+            "id": 21,
             "offset": 0.0,
             "orientation": "direct",
             "type": "MX-64"
