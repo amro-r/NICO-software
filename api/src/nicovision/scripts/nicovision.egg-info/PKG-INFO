@@ -1,8 +1,10 @@
-Metadata-Version: 2.1
+Metadata-Version: 1.0
 Name: nicovision
 Version: 1.0
 Summary: NICO api package for vision related modules
+Home-page: UNKNOWN
 Author: Connor Gaede
 Author-email: 4gaede@informatik.uni-hamburg.de
-Requires-Dist: numpy==1.21.6
-Requires-Dist: opencv-python==4.3.0.36
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN

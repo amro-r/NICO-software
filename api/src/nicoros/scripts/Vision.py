@@ -150,29 +150,58 @@ class NicoRosVision:
 
         nico_eyes = MultiCamRecorder.autodetect_nicoeyes()
         devices = []
+
+        def _append_device(label, device_name):
+            if device_name and device_name not in devices:
+                devices.append(device_name)
+            elif device_name is None:
+                self._logger.warning("No %s camera detected", label)
+            else:
+                self._logger.warning(
+                    "Device %s already scheduled, skipping duplicate", device_name
+                )
+
         if self._config["mode"] in ("stereo", "left"):
-            if self._config["device_left"] == "":
-                devices.append(nico_eyes[0])
-            else:
-                devices.append(self._config["device_left"])
+            selected = (
+                self._config["device_left"] or nico_eyes[0]
+            )
+            _append_device("left", selected)
         if self._config["mode"] in ("stereo", "right"):
-            if self._config["device_right"] == "":
-                devices.append(nico_eyes[1])
-            else:
-                devices.append(self._config["device_right"])
-        self._device = MultiCamRecorder.MultiCamRecorder(
-            devices,
-            self._config["width"],
-            self._config["height"],
-            self._config["framerate"],
-            self._config["zoom"],
-            self._config["pan"],
-            self._config["tilt"],
-            self._config["settings_file"],
-            self._config["setting"],
-            writer_threads=0,
-            pixel_format="UYVY",
-        )
+            selected = self._config["device_right"] or nico_eyes[1]
+            if (
+                selected is None
+                and self._config["mode"] == "right"
+                and nico_eyes[0] is not None
+            ):
+                self._logger.warning(
+                    "Right camera not detected, falling back to available camera %s",
+                    nico_eyes[0],
+                )
+                selected = nico_eyes[0]
+            _append_device("right", selected)
+
+        devices = [device for device in devices if device]
+        if not devices:
+            self._logger.error("No valid camera devices available for mode %s", self._config["mode"])
+            return
+
+        try:
+            self._device = MultiCamRecorder.MultiCamRecorder(
+                devices,
+                self._config["width"],
+                self._config["height"],
+                self._config["framerate"],
+                self._config["zoom"],
+                self._config["pan"],
+                self._config["tilt"],
+                self._config["settings_file"],
+                self._config["setting"],
+                writer_threads=0,
+                pixel_format="UYVY",
+            )
+        except ValueError as exc:
+            self._logger.error("Failed to initialize cameras: %s", exc)
+            return
         if self._device is None:
             self._logger.error(
                 "Can not initialise device - is the device name correct "

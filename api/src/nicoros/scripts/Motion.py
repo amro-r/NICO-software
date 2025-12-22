@@ -50,7 +50,9 @@ class NicoRosMotion:
             "jointStateName": "/joint_states",
             "fakeExecution": False,
             "usePyrep": False,
+            "pyrep": False,
             "headless": False,
+            "disabledMotorIds": [24, 26, 28, 30, 32],
         }
 
     def __init__(self, config=None):
@@ -83,6 +85,10 @@ class NicoRosMotion:
             config["pyrep"] = rospy.get_param(config["rostopicName"] + "/pyrep")
         if rospy.has_param(config["rostopicName"] + "/headless"):
             config["headless"] = rospy.get_param(config["rostopicName"] + "/headless")
+        if rospy.has_param(config["rostopicName"] + "/disabledMotorIds"):
+            config["disabledMotorIds"] = rospy.get_param(
+                config["rostopicName"] + "/disabledMotorIds"
+            )
 
         # init Motion
         self.logger.info("-- Init NicoRosMotion --")
@@ -95,10 +101,13 @@ class NicoRosMotion:
             vrepConfig["vrep_scene"] = config["vrepScene"]
             vrepConfig["vrep_host"] = config["vrepHost"]
             vrepConfig["vrep_port"] = config["vrepPort"]
+        disabled_ids = [int(x) for x in config.get("disabledMotorIds", [])]
         self.robot = Motion(
             motorConfig=config["robotMotorFile"],
             vrep=config["vrep"],
             vrepConfig=vrepConfig,
+            ignoreMissing=True,
+            disabled_ids=disabled_ids,
         )
 
         # init ROS

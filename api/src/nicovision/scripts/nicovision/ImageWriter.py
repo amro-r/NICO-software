@@ -1,5 +1,5 @@
 import logging
-import Queue
+import queue
 import threading
 import time
 
@@ -12,7 +12,7 @@ class ImageWriter:
     def __init__(self, workers=2, write_enabled=True):
         self._logger = logging.getLogger(__name__)
         self._logger.debug("Initializing {}".format(__name__))
-        self._queue = Queue.Queue()
+        self._queue = queue.Queue()
         self._write_enabled = write_enabled
         self._open = False
         self._worker_threads = [None] * workers
@@ -49,7 +49,7 @@ class ImageWriter:
                 try:
                     cv2.imwrite(*self._queue.get(timeout=1.))
                     self._queue.task_done()
-                except Queue.Empty:
+                except queue.Empty:
                     self._logger.debug("Image writing Queue empty")
                     continue
 

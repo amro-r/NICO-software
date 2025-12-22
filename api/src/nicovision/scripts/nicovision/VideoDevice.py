@@ -7,6 +7,7 @@ import inspect
 import json
 import logging
 import os
+import re
 import subprocess
 import threading
 import time
@@ -103,16 +104,24 @@ class VideoDevice:
         :return: Devicenames as (left, right) tuple (None if not found)
         :rtype: tuple
         """
-        left, right = None, None
+        def _match_known(targets, devices):
+            for candidate in targets:
+                if candidate in devices:
+                    return candidate
+            return None
+
         devices = VideoDevice.get_all_devices()
-        for device in NICO_EYES["left"]:
-            if device in devices:
-                left = device
-                break
-        for device in NICO_EYES["right"]:
-            if device in devices:
-                right = device
-                break
+        left = _match_known(NICO_EYES["left"], devices)
+        right = _match_known(NICO_EYES["right"], devices)
+
+        see3_devices = [d for d in devices if "See3CAM_CU135" in d]
+        if left is None and see3_devices:
+            left = see3_devices[0]
+        if right is None:
+            for dev in see3_devices:
+                if dev != left:
+                    right = dev
+                    break
         return (left, right)
 
     @staticmethod
@@ -126,6 +135,22 @@ class VideoDevice:
         :rtype: int
         """
         logger = logging.getLogger(__name__)
+        if not device:
+            logger.error("No device specified (resolve_device)")
+            return -1
+
+        # Allow direct /dev/videoX paths
+        if os.path.isabs(device) and os.path.exists(device):
+            real_path = os.path.realpath(device)
+            match = re.search(r"video(\\d+)$", real_path)
+            if match:
+                return int(match.group(1))
+
+        if device.startswith("/dev/video"):
+            match = re.search(r"video(\\d+)$", device)
+            if match:
+                return int(match.group(1))
+
         if not os.path.isdir(VideoDevice._VIDEO_DEVICE_PATH):
             logger.error("Video device device does not exists!")
             return -1

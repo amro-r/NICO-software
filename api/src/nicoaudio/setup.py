@@ -1,10 +1,5 @@
 #!/usr/bin/env python
-import sys
 from setuptools import find_packages, setup
-
-extra = {}
-if sys.version_info >= (3,):
-    extra["use_2to3"] = True
 
 setup(
     name="nicoaudio",
@@ -23,5 +18,4 @@ setup(
         "requests",
         "tts",
     ],
-    **extra
 )

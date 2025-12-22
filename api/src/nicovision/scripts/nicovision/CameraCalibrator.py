@@ -8,9 +8,9 @@ from os.path import abspath, dirname, isfile
 import cv2
 import numpy as np
 
-import Barrier
-import MultiCamRecorder
-from NumpyEncoder import NumpyEncoder
+from . import Barrier
+from . import MultiCamRecorder
+from .NumpyEncoder import NumpyEncoder
 
 
 def takespread(sequence, num):

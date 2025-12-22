@@ -5,8 +5,8 @@ import time
 
 import cv2
 
-from ImageWriter import ImageWriter
-from VideoDevice import VideoDevice
+from .ImageWriter import ImageWriter
+from .VideoDevice import VideoDevice
 
 
 def get_devices():

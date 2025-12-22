@@ -1,10 +1,5 @@
 #!/usr/bin/env python
-import sys
 from setuptools import find_packages, setup
-
-extra = {}
-if sys.version_info >= (3,):
-    extra["use_2to3"] = True
 
 setup(
     name="nicovision",
@@ -19,5 +14,4 @@ setup(
         # FIXME remove version when qt incompatibility fixed
         "opencv-python==4.3.0.36",
     ],
-    **extra
 )

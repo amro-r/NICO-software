@@ -68,6 +68,7 @@ class Motion:
         vrepConfig=None,
         ignoreMissing=False,
         monitorHandCurrents=True,
+        disabled_ids=None,
     ):
         """
         Motion is an interface to control the movement of the NICO robot.
@@ -101,6 +102,11 @@ class Motion:
         if vrepConfig is None:
             vrepConfig = Motion.vrepRemoteConfig()
         self._pyrep = vrepConfig["use_pyrep"]
+
+        if disabled_ids is None:
+            disabled_ids = []
+        else:
+            disabled_ids = [int(x) for x in disabled_ids]
 
         with open(motorConfig, "r") as config_file:
             config = json.load(config_file)
@@ -162,6 +168,12 @@ class Motion:
                                 ]
                 self._logger.warning("New config created:")
                 self._logger.warning(pprint.pformat(config))
+
+            if disabled_ids:
+                self._logger.warning(
+                    "Disabling motors with IDs %s", ", ".join(map(str, disabled_ids))
+                )
+                remove_missing(disabled_ids)
 
             retries = 0
             success = False

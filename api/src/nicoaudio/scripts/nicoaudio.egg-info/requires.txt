@@ -4,4 +4,4 @@ pydub
 pyaudio
 pyalsaaudio
 requests
-TTS==0.9.0
+tts

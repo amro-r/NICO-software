@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-Right wrist full-range check (NICO robot, right arm)
+Right arm range test (shoulder, elbow, wrist; fingers excluded)
 
-- Reads wrist motor IDs and angle limits from available configs under ../json
-- Tests two axes if present: roll (left/right) and pitch (up/down)
-- Commands near the configured limits to verify the expected ~180° roll and ~70° pitch
-- Limits scan to candidate IDs to avoid long hangs
+- Verifies shoulder pitch/roll, elbow flex, and wrist roll/pitch against their configured limits.
+- Reads IDs/limits from available upper-body/hand configs under ../json.
+- Excludes finger motors; finger range is covered by r_fingers_range_test.py.
 """
 
 import json
@@ -25,17 +24,21 @@ except ImportError as e:
 
 # Candidate configs ordered by likelihood for this robot
 DEFAULT_CONFIGS = [
-    "json/nico_humanoid_upper_body_control_general.json",  # IDs 23 (roll), 25 (pitch)
-    "json/nico_humanoid_upper_with_hands.json",            # IDs 23 (roll), 25 (pitch)
-    "json/nico_humanoid_upper_fixed.json",                 # similar fallback
-    "json/rh7d_hands.json",                                # wrist_z 31, wrist_y 32, wrist_x 33
+    "json/nico_humanoid_upper_body_control_general.json",
+    "json/nico_humanoid_upper_with_hands.json",
+    "json/nico_humanoid_upper_fixed.json",
+    "json/rh7d_hands.json",  # wrist variants
     "json/rh5d_hands.json",
 ]
 
-WRIST_NAMES = {
-    "r_wrist_z": "Roll (left/right)",
-    "r_wrist_y": "Pitch (up/down)",
-    "r_wrist_x": "Pitch (up/down)",
+JOINT_SPECS = {
+    "r_shoulder_y": {"description": "Shoulder Pitch", "desired_span": (-120, 120)},
+    "r_shoulder_z": {"description": "Shoulder Roll", "desired_span": (-90, 90)},
+    "r_arm_x":      {"description": "Upper Arm Twist", "desired_span": (-140, 75)},  # matches config default
+    "r_elbow_y":    {"description": "Elbow Flex", "desired_span": (-100, 100)},
+    "r_wrist_z":    {"description": "Wrist Roll (left/right)", "desired_span": (-90, 90)},
+    "r_wrist_y":    {"description": "Wrist Pitch (up/down)", "desired_span": (-40, 40)},
+    "r_wrist_x":    {"description": "Wrist Pitch (up/down)", "desired_span": (-50, 35)},
 }
 
 
@@ -43,7 +46,7 @@ def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def load_wrist_specs():
+def load_joint_specs():
     root = _repo_root()
     for rel in DEFAULT_CONFIGS:
         cfg = root / rel
@@ -54,43 +57,45 @@ def load_wrist_specs():
         motors = data.get("motors", {})
 
         specs = {}
-        for name, label in WRIST_NAMES.items():
+        for name, meta in JOINT_SPECS.items():
             if name not in motors:
                 continue
             entry = motors[name]
             specs[int(entry["id"])] = {
                 "name": name,
-                "description": label,
-                "angle_limit": entry.get("angle_limit", [-90.0, 90.0]),
+                "description": meta["description"],
+                "desired_span": meta["desired_span"],
+                "angle_limit": entry.get("angle_limit", meta["desired_span"]),
                 "config": cfg.name,
             }
         if specs:
             return specs
 
-    # Hard fallback based on typical MX-28 wrist mapping
+    # Hard fallback (right arm common IDs)
     return {
-        23: {"name": "r_wrist_z", "description": "Roll (left/right)", "angle_limit": [-90, 90], "config": "hardcoded"},
-        25: {"name": "r_wrist_x", "description": "Pitch (up/down)", "angle_limit": [-50, 35], "config": "hardcoded"},
+        1: {"name": "r_shoulder_y", "description": "Shoulder Pitch", "desired_span": (-120, 120), "angle_limit": (-180, 179), "config": "hardcoded"},
+        21: {"name": "r_shoulder_z", "description": "Shoulder Roll", "desired_span": (-90, 90), "angle_limit": (-100, 125), "config": "hardcoded"},
+        3: {"name": "r_arm_x", "description": "Upper Arm Twist", "desired_span": (-140, 75), "angle_limit": (-140, 75), "config": "hardcoded"},
+        5: {"name": "r_elbow_y", "description": "Elbow Flex", "desired_span": (-100, 100), "angle_limit": (-100, 100), "config": "hardcoded"},
+        23: {"name": "r_wrist_z", "description": "Wrist Roll (left/right)", "desired_span": (-90, 90), "angle_limit": (-90, 90), "config": "hardcoded"},
+        25: {"name": "r_wrist_x", "description": "Wrist Pitch (up/down)", "desired_span": (-50, 35), "angle_limit": (-50, 35), "config": "hardcoded"},
     }
 
 
 def safe_targets(angle_limit, desired_span):
     amin, amax = angle_limit
-    span_min, span_max = desired_span
-    # Clip desired span to configured limits with small margin
     m = 3.0
-    tmin = max(amin + m, span_min)
-    tmax = min(amax - m, span_max)
-    # Build a few waypoints
+    tmin = max(amin + m, desired_span[0])
+    tmax = min(amax - m, desired_span[1])
     return [0.0, tmin, 0.0, tmax, 0.0]
 
 
-def test_right_wrist(port="/dev/ttyUSB0", baud=1_000_000):
+def test_arm(port="/dev/ttyUSB0", baud=1_000_000):
     print("=" * 60)
-    print("RIGHT WRIST RANGE TEST")
+    print("RIGHT ARM RANGE TEST (Shoulder / Elbow / Wrist)")
     print("=" * 60)
 
-    specs = load_wrist_specs()
+    specs = load_joint_specs()
     print(f"Using config: {', '.join({v['config'] for v in specs.values()})}")
 
     try:
@@ -109,16 +114,10 @@ def test_right_wrist(port="/dev/ttyUSB0", baud=1_000_000):
         available_ids = set()
 
     try:
-        results = []
         for motor_id, info in specs.items():
             desc = info["description"]
             limits = info["angle_limit"]
-
-            desired_span = (-90, 90) if "Roll" in desc else (-35, 35)  # default targets
-            if "left/right" in desc:
-                desired_span = (-90, 90)   # ~180° roll
-            if "up/down" in desc:
-                desired_span = (-40, 30)   # ~70° pitch
+            desired_span = info["desired_span"]
 
             print("\n------------------------------------------------------------")
             print(f"{desc} (ID {motor_id}, {info['name']})")
@@ -128,8 +127,18 @@ def test_right_wrist(port="/dev/ttyUSB0", baud=1_000_000):
 
             if motor_id not in available_ids:
                 print("❌ Motor not detected on bus – skipping")
-                results.append((motor_id, desc, None))
                 continue
+
+            # Prefer hardware angle limits
+            try:
+                hw_min, hw_max = dxl_io.get_angle_limit([motor_id])[0]
+                limits = (float(hw_min), float(hw_max))
+                print(f"Using HW limits: {limits}")
+            except Exception as e:
+                print(f"⚠️ Could not read HW limits: {e}")
+
+            waypoints = safe_targets(limits, desired_span)
+            reached = []
 
             try:
                 pos = dxl_io.get_present_position([motor_id])[0]
@@ -138,10 +147,6 @@ def test_right_wrist(port="/dev/ttyUSB0", baud=1_000_000):
                 print(f"Current: {pos:.1f}° | {volt:.1f}V | {temp}°C")
             except Exception as e:
                 print(f"⚠️ Telemetry read failed: {e}")
-                pos, volt, temp = None, None, None
-
-            waypoints = safe_targets(limits, desired_span)
-            reached = []
 
             for idx, target in enumerate(waypoints, 1):
                 try:
@@ -158,14 +163,10 @@ def test_right_wrist(port="/dev/ttyUSB0", baud=1_000_000):
             if reached:
                 span = max(reached) - min(reached)
                 print(f"  Achieved span: {span:.1f}° (min {min(reached):.1f}°, max {max(reached):.1f}°)")
-                results.append((motor_id, desc, span))
-            else:
-                results.append((motor_id, desc, None))
 
     except Exception as e:
         print(f"✗ Test failed: {e}")
         traceback.print_exc()
-
     finally:
         try:
             dxl_io.close()
@@ -175,4 +176,4 @@ def test_right_wrist(port="/dev/ttyUSB0", baud=1_000_000):
 
 
 if __name__ == "__main__":
-    test_right_wrist()
+    test_arm()

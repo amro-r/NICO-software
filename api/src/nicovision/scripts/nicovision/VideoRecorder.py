@@ -3,8 +3,8 @@ import os
 
 import cv2
 
-from Colorspace import Colorspace
-from VideoDevice import VideoDevice
+from .Colorspace import Colorspace
+from .VideoDevice import VideoDevice
 
 
 def get_devices():

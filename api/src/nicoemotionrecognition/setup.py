@@ -1,10 +1,5 @@
 #!/usr/bin/env python
-import sys
 from setuptools import find_packages, setup
-
-extra = {}
-if sys.version_info >= (3,):
-    extra["use_2to3"] = True
 
 setup(
     name="nicoemotionrecognition",
@@ -19,5 +14,4 @@ setup(
         "docker",
         "flaskcom @ git+https://github.com/LemonSpeech/flaskcom.git@44660c8#egg=flaskcom",
     ],
-    **extra
 )

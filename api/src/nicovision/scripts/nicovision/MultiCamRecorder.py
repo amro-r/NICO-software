@@ -4,16 +4,15 @@ import json
 import logging
 import os
 import subprocess
-import sys
 import threading
 import time
 from operator import itemgetter
 
 import cv2
 
-import Barrier
-from ImageWriter import ImageWriter
-from VideoDevice import VideoDevice
+from . import Barrier
+from .ImageWriter import ImageWriter
+from .VideoDevice import VideoDevice
 
 
 def autodetect_nicoeyes():
@@ -86,13 +85,21 @@ class MultiCamRecorder(object):
         if not devices:
             devices = autodetect_nicoeyes()
         self._deviceIds = []
+        self._deviceNames = []
         for device in devices:
+            if not device:
+                self._logger.warning("Skipping empty device entry")
+                continue
             deviceId = VideoDevice.resolve_device(device)
             if deviceId == -1:
                 self._logger.error(
-                    'Can not create device from path' + self._device)
-                sys.exit()
+                    "Can not create device from path %s", device
+                )
+                continue
             self._deviceIds.append(deviceId)
+            self._deviceNames.append(device)
+        if not self._deviceIds:
+            raise ValueError("No valid video devices could be initialized")
 
         self._open = False
         self._target = 'picture-{}.png'

@@ -10,4 +10,4 @@ Requires-Dist: pydub
 Requires-Dist: pyaudio
 Requires-Dist: pyalsaaudio
 Requires-Dist: requests
-Requires-Dist: TTS==0.9.0
+Requires-Dist: tts
