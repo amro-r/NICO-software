@@ -142,12 +142,12 @@ class VideoDevice:
         # Allow direct /dev/videoX paths
         if os.path.isabs(device) and os.path.exists(device):
             real_path = os.path.realpath(device)
-            match = re.search(r"video(\\d+)$", real_path)
+            match = re.search(r"video(\d+)$", real_path)
             if match:
                 return int(match.group(1))
 
         if device.startswith("/dev/video"):
-            match = re.search(r"video(\\d+)$", device)
+            match = re.search(r"video(\d+)$", device)
             if match:
                 return int(match.group(1))
 
