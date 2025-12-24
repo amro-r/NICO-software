@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<!-- 
+  ELMiRA v2 Launch File
+  
+  Launches the full ELMiRA v2 stack with the unified MLLM gateway.
+  
+  Usage:
+    roslaunch elmira init_nodes_v2.launch
+    roslaunch elmira init_nodes_v2.launch mllm_provider:=google
+    roslaunch elmira init_nodes_v2.launch use_owlv2_fallback:=true
+-->
+<launch>
+    <!-- Arguments -->
+    <arg name="mllm_provider" default="openai" doc="MLLM provider: openai or google"/>
+    <arg name="mllm_model" default="" doc="Model name (empty for provider default)"/>
+    <arg name="use_owlv2_fallback" default="false" doc="Launch OWLv2 as fallback"/>
+    <arg name="use_mllm_grounding" default="true" doc="Use MLLM for object detection"/>
+    <arg name="temperature" default="0.7" doc="LLM temperature"/>
+    <arg name="image_topic" default="/nico/vision/right" doc="Camera topic"/>
+    <arg name="json_path" default="$(find nicoros)/../../../json/nico_humanoid_upper_fixed.json" doc="Motor config JSON"/>
+    
+    <!-- Speech ASR parameters - adjust based on your microphone/environment -->
+    <arg name="energy_silence" default="2000" doc="Energy level for silence (increase for noisy environments)"/>
+    <arg name="energy_start" default="4000" doc="Energy threshold to start speech detection"/>
+    <arg name="energy_stop" default="3000" doc="Energy threshold to stop speech detection"/>
+    <arg name="energy_dynamic" default="true" doc="Dynamically adjust energy thresholds"/>
+    
+    <!-- Camera -->
+    <include file="$(find elmira)/launch/camera.launch"/>
+    
+    <!-- Joint Controller -->
+    <include file="$(find nicoros)/launch/joint_controller.launch">
+        <arg name="json_path" value="$(arg json_path)"/>
+    </include>
+    
+    <!-- Speech ASR with adjusted thresholds -->
+    <node name="speech_asr" pkg="elmira" type="speech_asr.py" required="true" output="screen">
+        <param name="energy_silence" value="$(arg energy_silence)"/>
+        <param name="energy_start" value="$(arg energy_start)"/>
+        <param name="energy_stop" value="$(arg energy_stop)"/>
+        <param name="energy_dynamic" value="$(arg energy_dynamic)"/>
+        <param name="verbose" value="true"/>
+    </node>
+    
+    <!-- MLLM Gateway (v2) -->
+    <node name="mllm_gateway" pkg="elmira" type="llm_api_v2.py" required="true" output="screen">
+        <param name="provider" value="$(arg mllm_provider)"/>
+        <param name="model" value="$(arg mllm_model)"/>
+        <param name="temperature" value="$(arg temperature)"/>
+        <param name="image_topic" value="$(arg image_topic)"/>
+    </node>
+    
+    <!-- OWLv2 Object Localiser (optional fallback) -->
+    <node name="object_localiser" pkg="elmira" type="object_localiser.py" 
+          required="true" output="screen" if="$(arg use_owlv2_fallback)"/>
+    
+    <!-- Coordinate Transfer -->
+    <node name="coordinate_transfer" pkg="elmira" type="coordinate_transfer.py" 
+          required="true" output="screen"/>
+    
+    <!-- IK Solver -->
+    <node name="ik_solver" pkg="elmira" type="ik_solver.py" required="true" output="screen"/>
+    
+    <!-- Text to Speech -->
+    <node name="text_to_speech" pkg="nicoros" type="TextToSpeech.py" 
+          required="true" output="screen"/>
+    
+    <!-- Set global params for state machine -->
+    <param name="/use_mllm" value="true"/>
+    <param name="/use_mllm_grounding" value="$(arg use_mllm_grounding)"/>
+    <param name="/mllm_provider" value="$(arg mllm_provider)"/>
+</launch>

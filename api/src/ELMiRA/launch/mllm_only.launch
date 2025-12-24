@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<!-- 
+  MLLM Gateway Standalone Launch
+  
+  Launches only the MLLM gateway for testing without the full robot stack.
+  
+  Usage:
+    roslaunch elmira mllm_only.launch
+    roslaunch elmira mllm_only.launch mllm_provider:=google
+-->
+<launch>
+    <!-- Arguments -->
+    <arg name="mllm_provider" default="openai" doc="MLLM provider: openai or google"/>
+    <arg name="mllm_model" default="" doc="Model name (empty for provider default)"/>
+    <arg name="temperature" default="0.7" doc="LLM temperature"/>
+    <arg name="image_topic" default="/nico/vision/right" doc="Camera topic"/>
+    
+    <!-- Camera -->
+    <include file="$(find elmira)/launch/camera.launch"/>
+    
+    <!-- MLLM Gateway (v2) -->
+    <node name="mllm_gateway" pkg="elmira" type="llm_api_v2.py" required="true" output="screen">
+        <param name="provider" value="$(arg mllm_provider)"/>
+        <param name="model" value="$(arg mllm_model)"/>
+        <param name="temperature" value="$(arg temperature)"/>
+        <param name="image_topic" value="$(arg image_topic)"/>
+    </node>
+</launch>

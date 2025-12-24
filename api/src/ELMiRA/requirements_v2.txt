@@ -1,0 +1,23 @@
+# ELMiRA v2 - Additional Dependencies
+# Install with: pip install -r requirements_v2.txt
+
+# MLLM Providers
+openai>=1.40.0
+# Note: google-generativeai>=0.8.0 requires Python 3.9+
+# For Python 3.8, we use direct REST API via requests/httpx
+
+# Async & HTTP
+httpx>=0.25.0
+aiohttp>=3.8.0
+requests>=2.25.0
+
+# Validation & Schema
+pydantic>=2.0.0
+jsonschema>=4.0.0
+
+# Utilities
+tenacity>=8.0.0
+python-dotenv>=1.0.0
+
+# Note: The following are already in requirements.txt
+# torch, whisper, cv_bridge, numpy, opencv-python, etc.

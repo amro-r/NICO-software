@@ -1,0 +1,14 @@
+# PromptMLLM.srv
+# Unified multimodal LLM service for ELMiRA v2
+# Handles text prompts with optional image input
+
+string prompt                    # User/system text input
+bool include_image               # If true, capture and send current camera frame
+string image_topic               # Camera topic (default: /nico/vision/right)
+float32 temperature              # LLM temperature (0.0-2.0, default: 0.7)
+int32 max_tokens                 # Max response tokens (default: 1024)
+---
+string response_json             # JSON string with actions array
+bool success                     # True if request completed successfully
+string error_message             # Error details if success=false
+float32 latency_ms               # Request latency in milliseconds

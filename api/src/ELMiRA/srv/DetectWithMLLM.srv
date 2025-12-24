@@ -1,0 +1,11 @@
+# DetectWithMLLM.srv
+# Use MLLM for object detection (alternative to OWLv2)
+# Compatible with existing DetectedObject message
+
+string[] texts                   # Object labels to detect
+float32 confidence_threshold     # Minimum confidence (default: 0.5)
+---
+DetectedObject[] objects         # Detected objects with bounding boxes
+bool success
+string error_message
+float32 latency_ms

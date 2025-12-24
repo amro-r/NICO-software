@@ -1,0 +1,14 @@
+# PromptMLLMWithGrounding.srv
+# MLLM service with built-in object grounding/detection
+# Returns both action plan and detected object locations
+
+string prompt                    # User/system text input
+string[] detect_objects          # List of objects to detect and ground
+bool include_image               # If true, capture current camera frame
+float32 temperature              # LLM temperature
+---
+string response_json             # JSON string with actions array
+DetectedObject[] detections      # Grounded object locations
+bool success
+string error_message
+float32 latency_ms

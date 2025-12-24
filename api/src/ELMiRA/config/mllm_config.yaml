@@ -1,0 +1,38 @@
+# ELMiRA v2 MLLM Gateway Configuration
+# 
+# This file contains configuration options for the MLLM gateway.
+# Copy to your workspace and modify as needed.
+
+# Provider selection: "openai" or "google"
+provider: "openai"
+
+# OpenAI-specific settings
+openai:
+  model: "gpt-4o"
+  temperature: 0.7
+  max_tokens: 1024
+
+# Google Gemini-specific settings
+google:
+  model: "gemini-3-flash-preview"
+  temperature: 0.7
+  max_tokens: 1024
+
+# Common settings
+common:
+  timeout: 30.0
+  retry_attempts: 3
+  image_quality: 85
+  cache_duration: 0.5
+
+# Visual grounding settings
+grounding:
+  enabled: true
+  confidence_threshold: 0.5
+  fallback_to_owlv2: true
+
+# Logging settings
+logging:
+  debug: false
+  log_latency: true
+  publish_debug_images: false
