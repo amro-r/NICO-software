@@ -1,3 +1,316 @@
+# 🤖 ELMiRA v2 Robot Operation Guide
+
+## System Requirements
+- **OS**: Ubuntu 20.04 LTS
+- **ROS**: Noetic
+- **Python**: 3.8
+
+---
+
+## Step 1: Check USB Connections
+
+### 1.1 Check Motor Controller (Dynamixel)
+```bash
+# List all USB serial devices
+ls -la /dev/ttyACM*
+ls -la /dev/ttyUSB*
+
+# You should see something like:
+# /dev/ttyACM0 -> Motor controller
+```
+
+If no devices appear, check:
+- USB cable is connected
+- Power is on for the robot
+
+### 1.2 Set Permissions for Motor Controller
+```bash
+# Option A: Add user to dialout group (permanent, requires logout/login)
+sudo adduser $USER dialout
+
+# Option B: Set permissions manually (temporary, per session)
+sudo chmod 777 /dev/ttyACM*
+```
+
+### 1.3 Check Camera Devices
+```bash
+# List all video devices
+ls -la /dev/v4l/by-id/
+
+# List video devices directly
+ls -la /dev/video*
+
+# Check camera details
+v4l2-ctl --list-devices
+```
+
+Expected output for NICO eyes (See3CAM cameras):
+```
+usb-e-con_systems_See3CAM_CU135_XXXXXXXX-video-index0
+```
+
+### 1.4 Test Camera Access
+```bash
+# Quick camera test (requires v4l-utils)
+v4l2-ctl -d /dev/video0 --all
+
+# Or test with Python
+python3 -c "
+import cv2
+cap = cv2.VideoCapture(0)
+ret, frame = cap.read()
+print(f'Camera works: {ret}, Frame shape: {frame.shape if ret else None}')
+cap.release()
+"
+```
+
+---
+
+## Step 2: Environment Setup
+
+### 2.1 Source the Workspace
+```bash
+cd ~/catkin_ws/src/NICO-software/api
+source activate.bash
+```
+
+### 2.2 Set API Key (choose one provider)
+```bash
+# Option A: Google Gemini (recommended for multimodal)
+export GOOGLE_API_KEY="your-google-api-key-here"
+
+# Option B: OpenAI GPT-4o
+export OPENAI_API_KEY="your-openai-api-key-here"
+```
+
+**To make permanent**, add to `~/.bashrc`:
+```bash
+echo 'export GOOGLE_API_KEY="your-key"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 2.3 Install v2 Dependencies
+```bash
+pip install -r ~/catkin_ws/src/NICO-software/api/src/ELMiRA/requirements_v2.txt
+```
+
+### 2.4 Build Catkin Workspace
+```bash
+cd ~/catkin_ws/src/NICO-software/api
+catkin_make
+source devel/setup.bash
+```
+
+---
+
+## Step 3: Configure Robot Motors
+
+Since your **left arm is not functional** (but elbow and shoulder work), we need to configure the motor JSON file.
+
+### 3.1 Check Current Motor Config
+The default config is [`json/nico_humanoid_upper.json`]nico_humanoid_upper.json ). For a robot with limited left arm, edit or create a custom config:
+
+```bash
+# View current motor IDs
+cat ~/catkin_ws/src/NICO-software/json/nico_humanoid_upper.json | grep -A3 '"l_'
+```
+
+### 3.2 Disable Non-Functional Motors (Optional)
+If specific left arm motors don't work, you can disable them in the Motion node config. Edit the disabled motor IDs in the ROS param or JSON.
+
+In [`api/src/nicoros/scripts/Motion.py`]Motion.py ) line 53:
+```python
+"disabledMotorIds": [24, 26, 28, 30, 32],  # Add non-working motor IDs here
+```
+
+Or set via ROS param before launching:
+```bash
+rosparam set /nico/motion/disabledMotorIds "[24, 26, 28, 30, 32]"
+```
+
+---
+
+## Step 4: Launch the Robot
+
+### 4.1 Terminal 1: Start ROS Core
+```bash
+roscore
+```
+
+### 4.2 Terminal 2: Launch Motor Controller
+```bash
+cd ~/catkin_ws/src/NICO-software/api
+source activate.bash
+source devel/setup.bash
+
+# Launch motion controller with your motor config
+roslaunch nicoros joint_controller.launch json_path:=$(rospack find nicoros)/../../../json/nico_humanoid_upper.json
+```
+
+Watch for errors like:
+- `No motor found at ID XX` - motor disconnected or broken
+- `Connection refused` - USB not connected or permissions issue
+
+### 4.3 Terminal 3: Launch ELMiRA v2 (MLLM Gateway)
+```bash
+cd ~/catkin_ws/src/NICO-software/api
+source activate.bash
+source devel/setup.bash
+
+# With Google Gemini provider
+roslaunch elmira init_nodes_v2.launch mllm_provider:=google
+
+# OR with OpenAI provider
+roslaunch elmira init_nodes_v2.launch mllm_provider:=openai
+```
+
+---
+
+## Step 5: Verify Everything is Running
+
+### 5.1 Check ROS Topics
+```bash
+# List all topics
+rostopic list
+
+# You should see:
+# /nico/vision/right        - Camera feed
+# /nico/motion/...          - Motor control
+# /joint_states             - Joint positions
+```
+
+### 5.2 Check ROS Services
+```bash
+# List MLLM services
+rosservice list | grep mllm
+
+# Expected:
+# /mllm_chat
+# /mllm_vision  
+# /mllm_detect
+# /mllm_visibility
+```
+
+### 5.3 Test Camera Topic
+```bash
+# Check if camera is publishing
+rostopic hz /nico/vision/right
+
+# View camera image (requires image_view)
+rosrun image_view image_view image:=/nico/vision/right
+```
+
+### 5.4 Test MLLM Service
+```bash
+# Test the MLLM gateway
+rosservice call /mllm_chat "prompt: 'Hello, what can you see?'"
+```
+
+---
+
+## Step 6: Run the State Machine
+
+### 6.1 Launch the Full ELMiRA System
+```bash
+cd ~/catkin_ws/src/NICO-software/api
+source activate.bash
+source devel/setup.bash
+
+# Run the state machine
+rosrun elmira state_machine.py
+```
+
+### 6.2 Interact with the Robot
+The robot will:
+1. Listen for speech (ASR)
+2. Process with MLLM (Gemini/GPT-4o)
+3. Execute actions (speak, move, detect objects)
+
+---
+
+## Troubleshooting
+
+### Camera Not Found
+```bash
+# Check USB devices
+lsusb
+
+# Check v4l devices
+v4l2-ctl --list-devices
+
+# Try different video device
+roslaunch elmira camera.launch mode:=right
+```
+
+### Motor Connection Failed
+```bash
+# Check serial permissions
+ls -la /dev/ttyACM*
+
+# Try resetting USB
+sudo usbreset /dev/bus/usb/XXX/YYY  # Get XXX/YYY from lsusb
+
+# Check if port is in use
+sudo fuser /dev/ttyACM0
+```
+
+### MLLM Gateway Error
+```bash
+# Check API key is set
+echo $GOOGLE_API_KEY
+echo $OPENAI_API_KEY
+
+# Test provider directly
+python3 -c "
+import os
+print('GOOGLE_API_KEY:', 'SET' if os.getenv('GOOGLE_API_KEY') else 'NOT SET')
+print('OPENAI_API_KEY:', 'SET' if os.getenv('OPENAI_API_KEY') else 'NOT SET')
+"
+```
+
+### Left Arm Not Moving
+Since left arm is partially functional (elbow/shoulder work), check:
+```bash
+# Get current joint states
+rostopic echo /joint_states -n 1
+
+# Test individual joint
+rosservice call /nico/motion/setAngle "motorName: 'l_shoulder_y'
+value: 0.0
+speed: 0.5"
+```
+
+---
+
+## Quick Start Summary
+
+```bash
+# Terminal 1
+roscore
+
+# Terminal 2
+cd ~/catkin_ws/src/NICO-software/api
+source activate.bash && source devel/setup.bash
+sudo chmod 777 /dev/ttyACM*
+roslaunch nicoros joint_controller.launch
+
+# Terminal 3
+cd ~/catkin_ws/src/NICO-software/api
+source activate.bash && source devel/setup.bash
+export GOOGLE_API_KEY="your-key"
+roslaunch elmira init_nodes_v2.launch mllm_provider:=google
+
+# Terminal 4 (after nodes are up)
+rosrun elmira state_machine.py
+```
+
+
+
+
+
+
+
+
 # 🤖 ELMiRA v2 Robot Operation Guide - OpenAI GPT-4o
 
 ## Pre-Flight Checklist
