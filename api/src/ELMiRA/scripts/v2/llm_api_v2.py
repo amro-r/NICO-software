@@ -26,6 +26,7 @@ if str(_v2_dir) not in sys.path:
 import rospy
 import numpy as np
 
+from std_srvs.srv import Trigger, TriggerResponse
 from elmira.srv import (
     PromptTextLLM, PromptTextLLMResponse,
     PromptVisionLLM, PromptVisionLLMResponse,
@@ -88,8 +89,12 @@ class MLLMGateway:
         rospy.Service("llm_vision", PromptVisionLLM, self.handle_vision)
         rospy.Service("llm_object_visibility", CheckLLMObjectVisibility, self.handle_visibility)
         
+        # Conversation management service
+        rospy.Service("mllm_reset_conversation", Trigger, self.handle_reset_conversation)
+        
         rospy.loginfo(f"MLLM Gateway started with provider: {self.provider_name}")
         rospy.loginfo(f"Model: {self.provider.model if self.provider else 'N/A'}")
+        rospy.loginfo("Conversation memory enabled (max 10 turns)")
     
     def _get_api_key(self) -> str:
         """Get API key from environment based on provider."""
@@ -310,6 +315,29 @@ class MLLMGateway:
                 success=False,
                 error_message=str(e),
                 latency_ms=latency_ms
+            )
+    
+    def handle_reset_conversation(self, request) -> TriggerResponse:
+        """
+        Handle conversation reset request.
+        
+        Service: mllm_reset_conversation
+        
+        Clears the conversation history to start fresh multi-turn context.
+        Call this when starting a new interaction or if context becomes stale.
+        """
+        try:
+            self.provider.reset_conversation()
+            rospy.loginfo("Conversation history cleared")
+            return TriggerResponse(
+                success=True,
+                message="Conversation history cleared"
+            )
+        except Exception as e:
+            rospy.logerr(f"Failed to reset conversation: {e}")
+            return TriggerResponse(
+                success=False,
+                message=str(e)
             )
     
     def run(self):

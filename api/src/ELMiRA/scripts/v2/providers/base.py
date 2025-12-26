@@ -140,6 +140,16 @@ class BaseMLLMProvider(ABC):
         """
         pass
     
+    @abstractmethod
+    def reset_conversation(self) -> None:
+        """
+        Reset conversation history.
+        
+        Call this to clear the multi-turn context and start fresh.
+        Should be called between distinct user interactions.
+        """
+        pass
+    
     def encode_image(self, image: np.ndarray, format: str = "jpeg") -> str:
         """Encode image to base64 string."""
         import cv2
@@ -151,3 +161,4 @@ class BaseMLLMProvider(ABC):
             _, buffer = cv2.imencode(".png", image)
         
         return base64.b64encode(buffer).decode("utf-8")
+

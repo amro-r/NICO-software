@@ -34,10 +34,10 @@ from base import (
 
 class GoogleProvider(BaseMLLMProvider):
     """
-    Google Gemini 3 Flash provider using REST API.
+    Google Gemini provider with conversation memory.
     
     Supports multimodal inputs (text + images) for:
-    - Chat/conversation with vision
+    - Multi-turn chat/conversation with vision
     - Object detection with bounding boxes
     - Object visibility checking
     
@@ -46,6 +46,7 @@ class GoogleProvider(BaseMLLMProvider):
     
     # Gemini 3 Flash - multimodal model with vision capabilities
     DEFAULT_MODEL = "gemini-3-flash-preview"
+    MAX_HISTORY_TURNS = 10  # Limit history to prevent token overflow
     
     # API endpoint
     API_BASE = "https://generativelanguage.googleapis.com/v1beta"
@@ -83,6 +84,10 @@ class GoogleProvider(BaseMLLMProvider):
         )
         
         self.system_prompt = self._build_system_prompt()
+        
+        # Conversation history for multi-turn context
+        # Format: [{"role": "user"|"model", "parts": [...]}]
+        self.conversation_history: List[Dict[str, Any]] = []
     
     def __del__(self):
         """Clean up HTTP client."""
@@ -175,9 +180,10 @@ Please always output your response as a valid JSON object containing the list of
         temperature: float = 0.7,
         max_tokens: int = 4096,
         json_mode: bool = True,
+        include_history: bool = True,
     ) -> Dict[str, Any]:
         """
-        Build the full request body for generateContent API.
+        Build the full request body for generateContent API with conversation history.
         
         Args:
             prompt: Text prompt
@@ -185,17 +191,28 @@ Please always output your response as a valid JSON object containing the list of
             temperature: Sampling temperature (0.0-2.0)
             max_tokens: Maximum output tokens
             json_mode: Whether to request JSON output
+            include_history: Whether to include conversation history
             
         Returns:
             Request body dictionary
         """
+        # Build contents array with history + current message
+        contents = []
+        
+        # Add conversation history for multi-turn context
+        if include_history and self.conversation_history:
+            # Limit to last N turns to prevent token overflow
+            recent_history = self.conversation_history[-(self.MAX_HISTORY_TURNS * 2):]
+            contents.extend(recent_history)
+        
+        # Add current user message
+        contents.append({
+            "role": "user",
+            "parts": self._build_content_parts(prompt, image)
+        })
+        
         body = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": self._build_content_parts(prompt, image)
-                }
-            ],
+            "contents": contents,
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
@@ -337,6 +354,17 @@ Please always output your response as a valid JSON object containing the list of
                     latency_ms=latency_ms,
                 )
             
+            # Update conversation history for multi-turn context
+            # Store without image to save memory (text-only history)
+            self.conversation_history.append({
+                "role": "user",
+                "parts": [{"text": prompt}]
+            })
+            self.conversation_history.append({
+                "role": "model",
+                "parts": [{"text": content}]
+            })
+            
             return MLLMResponse(
                 response_json=content,
                 success=True,
@@ -361,6 +389,10 @@ Please always output your response as a valid JSON object containing the list of
                 error_message=str(e),
                 latency_ms=latency_ms,
             )
+    
+    def reset_conversation(self) -> None:
+        """Clear conversation history to start fresh."""
+        self.conversation_history.clear()
     
     def chat_with_grounding(
         self,

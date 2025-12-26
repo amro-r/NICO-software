@@ -28,9 +28,10 @@ from base import (
 
 
 class OpenAIProvider(BaseMLLMProvider):
-    """OpenAI GPT-5.2 provider implementation."""
+    """OpenAI GPT-4o provider with conversation memory."""
     
     DEFAULT_MODEL = "gpt-4o"
+    MAX_HISTORY_TURNS = 10  # Limit history to prevent token overflow
     
     def __init__(
         self,
@@ -44,6 +45,10 @@ class OpenAIProvider(BaseMLLMProvider):
         
         # System prompt for NICO robot
         self.system_prompt = self._build_system_prompt()
+        
+        # Conversation history for multi-turn context
+        # Format: [{"role": "user"|"assistant", "content": "..."}]
+        self.conversation_history: List[Dict[str, str]] = []
     
     @property
     def provider_name(self) -> str:
@@ -75,12 +80,30 @@ Please always output your response as a valid JSON object containing the list of
         self,
         prompt: str,
         image: Optional[np.ndarray] = None,
+        include_history: bool = True,
     ) -> List[Dict]:
-        """Build message array for API call."""
+        """
+        Build message array for API call with conversation history.
+        
+        Args:
+            prompt: Current user prompt
+            image: Optional image to include
+            include_history: Whether to include conversation history
+            
+        Returns:
+            List of message dictionaries for the API
+        """
         messages = [
             {"role": "system", "content": self.system_prompt}
         ]
         
+        # Add conversation history for multi-turn context
+        if include_history and self.conversation_history:
+            # Limit to last N turns to prevent token overflow
+            recent_history = self.conversation_history[-(self.MAX_HISTORY_TURNS * 2):]
+            messages.extend(recent_history)
+        
+        # Add current user message
         if image is not None:
             base64_image = self.encode_image(image)
             messages.append({
@@ -145,6 +168,10 @@ Please always output your response as a valid JSON object containing the list of
                     raw_response={"content": content}
                 )
             
+            # Update conversation history for multi-turn context
+            self.conversation_history.append({"role": "user", "content": prompt})
+            self.conversation_history.append({"role": "assistant", "content": content})
+            
             return MLLMResponse(
                 response_json=content,
                 success=True,
@@ -160,6 +187,10 @@ Please always output your response as a valid JSON object containing the list of
                 error_message=str(e),
                 latency_ms=latency_ms
             )
+    
+    def reset_conversation(self) -> None:
+        """Clear conversation history to start fresh."""
+        self.conversation_history.clear()
     
     def chat_with_grounding(
         self,
