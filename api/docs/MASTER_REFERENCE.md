@@ -321,3 +321,120 @@ api/
     *   Initializes multiple `VideoDevice` instances.
     *   Uses a `Barrier` to synchronize frame capture across threads.
 *   **Dependencies:** `cv2`, `threading`, `VideoDevice`.
+
+---
+
+## 4. Current Development State
+
+### 4.1 Hardware Limitations
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Right Arm | ✅ Functional | Full arm and hand working |
+| Left Arm | ⚠️ Partial | Shoulder/elbow functional; wrist/fingers non-functional |
+| Head | ✅ Functional | Pan/tilt working |
+| Right Eye Camera | ✅ Functional | See3CAM_CU135 on `/dev/video4` → `/nico/vision/right` |
+| Left Eye Camera | ✅ Functional | See3CAM_CU135 on `/dev/video2` → `/nico/vision/left` |
+| TTS | ✅ Functional | Coqui TTS with VCTK model |
+| ASR | ✅ Functional | OpenAI Whisper (small.en) |
+
+> **Note:** Left hand (wrist/fingers) motors have physical issues but the left arm (shoulder/elbow) is functional and can be used for pointing/pushing actions.
+
+### 4.2 Recent Fixes (December 2024)
+
+#### SMACH Userdata Fix
+*   **File:** `action_planner.py`
+*   **Issue:** `InvalidUserCodeError` when reading `hand_action` without declaring as input key
+*   **Fix:** Removed redundant check that attempted to read `hand_action` from userdata
+
+#### Gemini 3 Flash Token Limit
+*   **Files:** `llm_api_v2.py`, `google_provider.py`
+*   **Issue:** Reasoning model tokens causing truncated JSON responses
+*   **Fix:** Increased `max_tokens` from 1024 → 4096
+
+#### Movement Timeout
+*   **File:** `move_robot.py`
+*   **Issue:** Robot movements timing out before reaching target
+*   **Fix:** Increased timeout from 6s → 30s (`max_checks`: 300 → 1500)
+
+#### Stereo Camera Configuration
+*   **File:** `camera.launch`
+*   **Issue:** Only right eye camera was publishing
+*   **Fix:** Changed mode from `"right"` to `"stereo"` to enable both cameras
+
+### 4.3 Coordinate System
+
+The robot uses a **fixed Z-height assumption** for all object interactions:
+
+```python
+# In state_machine.py
+sm.userdata.table_z = 0.68  # Fixed table height in meters
+```
+
+*   **X, Y coordinates:** Provided by MLLM detection → Coordinate Transfer MLP
+*   **Z coordinate:** Hardcoded as `table_z` (robot cannot detect object height)
+
+### 4.4 Arm Selection Logic
+
+Arm selection in `action_planner.py` is based on **target Y coordinate**:
+
+```python
+is_right = userdata.target_y < 0  # Negative Y = right side of table
+userdata.planning_group = "r_arm" if is_right else "l_arm"
+```
+
+### 4.5 Action Offsets
+
+#### Push Action
+```python
+offsets = [
+    (-0.04, 0.0, 0.0),  # Start 4cm behind object
+    (0.03, 0.0, 0.0),   # Move 3cm forward
+    (0.06, 0.0, 0.0),   # Move 6cm forward
+    (0.06, 0.0, 0.10),  # Lift up 10cm
+]
+```
+
+#### Show Action
+```python
+offset = (-0.04, 0.0, 0.03)  # 4cm behind, 3cm above object
+```
+
+#### Touch Action
+```python
+offset = (0.0, 0.0, 0.0)  # Directly at object position
+```
+
+### 4.6 Running the System
+
+```bash
+# Terminal 1: ROS Core
+roscore
+
+# Terminal 2: Launch nodes
+roslaunch elmira init_nodes_v2.launch mllm_provider:=google
+
+# Terminal 3: State machine
+rosrun elmira state_machine.py
+
+# Optional: View camera feed
+rqt_image_view
+```
+
+### 4.7 Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GOOGLE_API_KEY` | Yes (for Google provider) | Gemini API key |
+| `OPENAI_API_KEY` | Yes (for OpenAI provider) | OpenAI API key |
+
+---
+
+## 5. Development Branches
+
+| Branch | Description |
+|--------|-------------|
+| `master` | Original NICO software |
+| `NICO-Amro` | Active development branch |
+| `NICO-Amro-backup-*` | Backup branches with dates |
+| `feat/handshake` | Feature branch for handshake development |
