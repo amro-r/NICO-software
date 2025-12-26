@@ -123,6 +123,11 @@ class ActionTrajectory(smach.State):
         )
 
     def execute(self, userdata):
+        # Select arm based on target Y coordinate:
+        # - target_y < 0: right side of table -> right arm
+        # - target_y >= 0: left side of table -> left arm
+        # NOTE: Left hand (wrist/fingers) is non-functional, but left arm
+        # (shoulder/elbow) works and can be used for pointing/pushing
         is_right = userdata.target_y < 0
         
         # Set default values for output keys (will be overwritten for grasp/place actions)
@@ -143,8 +148,9 @@ class ActionTrajectory(smach.State):
             target_poses.append(target_pose)
         elif userdata.action_type == "show":
             target_pose = Pose()
+            # NOTE: Reduced X offset from -0.08 to -0.04 for better reachability
             target_pose.position = Point(
-                userdata.target_x - 0.08, userdata.target_y, userdata.target_z + 0.03
+                userdata.target_x - 0.04, userdata.target_y, userdata.target_z + 0.03
             )
             if is_right:  # x, y, z, w
                 target_pose.orientation = Quaternion(-1.0, 0, 0, 0.0)
@@ -317,12 +323,6 @@ class ActionTrajectory(smach.State):
         # set output userdata
         userdata.planning_group = "r_arm" if is_right else "l_arm"
         userdata.poses = target_poses
-        
-        # Set hand_action to None for actions that don't require hand control
-        # (touch, show, push actions). Grasp/place already set hand_action above.
-        if not hasattr(userdata, 'hand_action') or userdata.hand_action is None:
-            if userdata.action_type not in ("grasp", "place"):
-                userdata.hand_action = None
         
         return "succeeded"
 

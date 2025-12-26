@@ -173,7 +173,7 @@ Please always output your response as a valid JSON object containing the list of
         prompt: str,
         image: Optional[np.ndarray] = None,
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         json_mode: bool = True,
     ) -> Dict[str, Any]:
         """
@@ -290,7 +290,7 @@ Please always output your response as a valid JSON object containing the list of
         prompt: str,
         image: Optional[np.ndarray] = None,
         temperature: float = 0.7,
-        max_tokens: int = 1024,
+        max_tokens: int = 4096,
         tools: Optional[List[Dict]] = None,
     ) -> MLLMResponse:
         """

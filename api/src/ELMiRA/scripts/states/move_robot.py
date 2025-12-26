@@ -96,7 +96,11 @@ class JointTrajectoryIterator(smach.Iterator):
 
 
 class MoveRobot(smach.Concurrence):
-    """Move robot head and arms in parallel."""
+    """Move robot head and arms in parallel.
+    
+    NOTE: Left hand (wrist/fingers) is non-functional, but left arm
+    (shoulder/elbow) works and can be used for pointing/pushing.
+    """
 
     def __init__(
         self,
@@ -195,7 +199,7 @@ class MoveRobotPart(smach.Sequence):
                     sub_topic,
                     JointState,
                     target_joint_state_reached_cb,
-                    max_checks=300,  # publisher at 50hz
+                    max_checks=1500,  # publisher at 50hz = 30 second timeout
                     input_keys=["names", "positions"],
                 ),
                 transitions={"valid": "succeeded", "invalid": "succeeded"},

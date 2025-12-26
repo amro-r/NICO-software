@@ -58,7 +58,7 @@ class MLLMGateway:
         self.provider_name = rospy.get_param("~provider", "openai")
         self.model = rospy.get_param("~model", None)  # Use provider default
         self.temperature = rospy.get_param("~temperature", 0.7)
-        self.max_tokens = rospy.get_param("~max_tokens", 1024)
+        self.max_tokens = rospy.get_param("~max_tokens", 4096)
         self.timeout = rospy.get_param("~timeout", 30.0)
         self.image_topic = rospy.get_param("~image_topic", "/nico/vision/right")
         self.cache_duration = rospy.get_param("~cache_duration", 0.5)
