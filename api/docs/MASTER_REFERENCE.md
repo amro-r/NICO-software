@@ -430,7 +430,72 @@ rqt_image_view
 
 ---
 
-## 5. Development Branches
+## 5. Recent Enhancements (December 2024)
+
+### 5.1 Conversation Memory
+
+The MLLM providers now maintain conversation history for multi-turn interactions.
+
+**Features:**
+- Up to 10 turns of conversation history retained
+- Enables pronoun resolution ("touch the red ball" → "push *it*")
+- Text-only history storage (images not retained to save memory)
+- Reset via `/mllm_reset_conversation` service
+
+**Implementation:**
+```python
+# OpenAI/Google providers maintain conversation_history list
+conversation_history: List[Dict] = []
+
+# Reset service
+rosservice call /mllm_reset_conversation "{}"
+```
+
+### 5.2 Grounded Action Planning
+
+Single MLLM call for action interpretation AND object localization, eliminating two-stage disconnect.
+
+**Features:**
+- Fresh frame capture for accurate grounding
+- Combines command parsing with object detection
+- Toggle via ROS parameter: `/use_grounded_action_planning`
+- Fallback to separate detection path available
+
+**Flow (when enabled):**
+```
+LOOK_DOWN_ACT → DECIDE_GROUNDED_PATH → GROUNDED_ACTION_CHAT → GROUNDED_PLAN_ACTION
+```
+
+**Flow (when disabled - fallback):**
+```
+LOOK_DOWN_ACT → DECIDE_GROUNDED_PATH → PLAN_ACTION_TRAJECTORY (separate detection)
+```
+
+**Launch options:**
+```bash
+# Enable grounded action planning (default)
+roslaunch elmira init_nodes_v2.launch mllm_provider:=google
+
+# Disable grounded action planning
+roslaunch elmira init_nodes_v2.launch use_grounded_action_planning:=false
+```
+
+**New states added:**
+- `DECIDE_GROUNDED_PATH`: Routes between grounded and separate detection paths
+- `GROUNDED_ACTION_CHAT`: Calls `/mllm_grounded_chat` service
+- `GROUNDED_PLAN_ACTION`: Uses `GroundedActionPlannerDirect` with pre-computed detections
+- `GroundedObjectSelector`: Selects objects from grounded detections
+
+### 5.3 New ROS Services
+
+| Service | Type | Description |
+|---------|------|-------------|
+| `/mllm_grounded_chat` | `PromptMLLMWithGrounding` | Combined action + detection in one call |
+| `/mllm_reset_conversation` | `std_srvs/Trigger` | Clear conversation history |
+
+---
+
+## 6. Development Branches
 
 | Branch | Description |
 |--------|-------------|
@@ -438,3 +503,5 @@ rqt_image_view
 | `NICO-Amro` | Active development branch |
 | `NICO-Amro-backup-*` | Backup branches with dates |
 | `feat/handshake` | Feature branch for handshake development |
+| `feat/visual-grounding-action-planning` | Grounded action planning feature |
+| `feat/mllm-conversation-memory` | Conversation memory implementation |

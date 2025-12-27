@@ -707,8 +707,9 @@ class GroundedObjectSelector(smach.State):
         
         detections = userdata.grounded_detections
         if not detections:
-            userdata.system_message = "No grounded detections available"
-            rospy.logwarn(userdata.system_message)
+            msg = "No grounded detections available"
+            userdata.system_message = msg
+            rospy.logwarn(msg)
             return "object_not_found"
         
         # Find best matching detection for target object
@@ -736,8 +737,9 @@ class GroundedObjectSelector(smach.State):
         
         # Check if object is within workspace
         if not self.within_workspace(x, y):
-            userdata.system_message = f"Object '{best_detection.label}' is out of reach"
-            rospy.logwarn(userdata.system_message)
+            msg = f"Object '{best_detection.label}' is out of reach"
+            userdata.system_message = msg
+            rospy.logwarn(msg)
             return "object_out_of_reach"
         
         rospy.loginfo(f"Selected grounded object: {best_detection.label} at ({x:.3f}, {y:.3f})")
