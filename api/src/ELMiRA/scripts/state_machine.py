@@ -6,8 +6,8 @@ import smach
 import smach_ros
 
 from actionlib_msgs.msg import GoalStatus
-from elmira.msg import PerformASRAction
-from elmira.srv import PromptTextLLM, PromptVisionLLM
+from elmira.msg import PerformASRAction, DetectedObject
+from elmira.srv import PromptTextLLM, PromptVisionLLM, PromptMLLMWithGrounding
 from nicomsg.srv import SayText
 from nicomsg.msg import empty
 
@@ -16,7 +16,7 @@ from nicomsg.msg import empty
 # PromptVisionLLM used for both llm_vision (v1) and mllm_vision (v2)
 
 from states.move_robot import JointTrajectoryIterator, MoveRobotPart, MoveRobot
-from states.action_planner import ConcurrentPlanAndVerify
+from states.action_planner import ConcurrentPlanAndVerify, GroundedActionPlannerDirect
 from states.action_parser import ActionParser
 from states.hand_control import HandControl, OpenHand, CloseHand, PreGraspHand
 
@@ -28,6 +28,9 @@ def main():
     use_mllm = rospy.get_param("/use_mllm", False)
     use_mllm_grounding = rospy.get_param("/use_mllm_grounding", False)
     mllm_provider = rospy.get_param("/mllm_provider", "openai")
+    
+    # Grounded action planning toggle - uses single MLLM call for act+detect
+    use_grounded_action_planning = rospy.get_param("/use_grounded_action_planning", True)
     
     # Select service names based on v1/v2 mode
     if use_mllm:
@@ -48,6 +51,13 @@ def main():
     sm.userdata.use_mllm = use_mllm
     sm.userdata.use_mllm_grounding = use_mllm_grounding
     sm.userdata.mllm_provider = mllm_provider
+    sm.userdata.use_grounded_action_planning = use_grounded_action_planning
+    
+    # Log grounded action planning status
+    if use_grounded_action_planning and use_mllm:
+        rospy.loginfo("ELMiRA: Grounded action planning ENABLED (single MLLM call for act+detect)")
+    else:
+        rospy.loginfo("ELMiRA: Grounded action planning DISABLED (separate detection)")
 
     # set topic names(TODO change into proper NICO paths TODO turn into rospy param?)
     MOTION_SUB_LEFT = "/left/open_manipulator_p/joint_states"
@@ -354,9 +364,83 @@ def main():
                         "names": "motion_look_down_names",
                         "positions": "motion_look_down_positions",
                     },
-                    transitions={"succeeded": "PLAN_ACTION_TRAJECTORY"},
+                    transitions={"succeeded": "DECIDE_GROUNDED_PATH"},
                 )
-                # plan action and verify if object is actually on the table
+                
+                # Decision: use grounded action planning or separate detection?
+                # Note: Read ROS params directly since nested state machine
+                # doesn't inherit parent userdata automatically
+                @smach.cb_interface(
+                    output_keys=["grounded_detections"],
+                    outcomes=["use_grounded", "use_separate"],
+                )
+                def decide_grounded_path_cb(userdata):
+                    use_grounded = rospy.get_param("/use_grounded_action_planning", True)
+                    use_mllm = rospy.get_param("/use_mllm", False)
+                    
+                    if use_grounded and use_mllm:
+                        rospy.loginfo("Using grounded action planning (single MLLM call)")
+                        return "use_grounded"
+                    else:
+                        rospy.loginfo("Using separate detection path")
+                        return "use_separate"
+                
+                smach.StateMachine.add(
+                    "DECIDE_GROUNDED_PATH",
+                    smach.CBState(decide_grounded_path_cb),
+                    transitions={
+                        "use_grounded": "GROUNDED_ACTION_CHAT",
+                        "use_separate": "PLAN_ACTION_TRAJECTORY",
+                    },
+                )
+                
+                # Grounded chat - calls MLLM with image to get action + detection in one call
+                def grounded_chat_request_cb(userdata, request):
+                    # Build prompt with action context
+                    request.prompt = f"USER: {userdata.llm_input}"
+                    request.detect_objects = userdata.target_object
+                    request.include_image = True
+                    request.temperature = 0.7
+                    return request
+                
+                def grounded_chat_response_cb(userdata, response):
+                    if response.success and response.detections:
+                        rospy.loginfo(f"Grounded chat: {len(response.detections)} detections")
+                        userdata.grounded_detections = response.detections
+                        return "succeeded"
+                    else:
+                        rospy.logwarn(f"Grounded chat failed: {response.error_message}")
+                        userdata.system_message = response.error_message or "Grounded chat failed"
+                        return "failed"
+                
+                smach.StateMachine.add(
+                    "GROUNDED_ACTION_CHAT",
+                    smach_ros.ServiceState(
+                        "mllm_grounded_chat",
+                        PromptMLLMWithGrounding,
+                        request_cb=grounded_chat_request_cb,
+                        response_cb=grounded_chat_response_cb,
+                        input_keys=["llm_input", "target_object"],
+                        output_keys=["grounded_detections", "system_message"],
+                        outcomes=["failed"],
+                    ),
+                    transitions={
+                        "succeeded": "GROUNDED_PLAN_ACTION",
+                        "failed": "system_out",  # Fallback could go to PLAN_ACTION_TRAJECTORY
+                    },
+                )
+                
+                # Grounded action planning - uses pre-computed detections
+                smach.StateMachine.add(
+                    "GROUNDED_PLAN_ACTION",
+                    GroundedActionPlannerDirect(),
+                    transitions={
+                        "succeeded": "CHECK_PREGRASP",
+                        "system_out": "system_out",
+                    },
+                )
+                
+                # plan action and verify if object is actually on the table (separate detection path)
                 smach.StateMachine.add(
                     "PLAN_ACTION_TRAJECTORY",
                     ConcurrentPlanAndVerify(),

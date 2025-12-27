@@ -33,6 +33,7 @@ from elmira.srv import (
     CheckLLMObjectVisibility, CheckLLMObjectVisibilityResponse,
     DetectObjects, DetectObjectsResponse,
     DetectWithMLLM, DetectWithMLLMResponse,
+    PromptMLLMWithGrounding, PromptMLLMWithGroundingResponse,
 )
 from elmira.msg import DetectedObject
 
@@ -91,6 +92,9 @@ class MLLMGateway:
         
         # Conversation management service
         rospy.Service("mllm_reset_conversation", Trigger, self.handle_reset_conversation)
+        
+        # Grounded chat service for action planning
+        rospy.Service("mllm_grounded_chat", PromptMLLMWithGrounding, self.handle_grounded_chat)
         
         rospy.loginfo(f"MLLM Gateway started with provider: {self.provider_name}")
         rospy.loginfo(f"Model: {self.provider.model if self.provider else 'N/A'}")
@@ -339,6 +343,106 @@ class MLLMGateway:
                 success=False,
                 message=str(e)
             )
+    
+    def handle_grounded_chat(self, request) -> PromptMLLMWithGroundingResponse:
+        """
+        Handle grounded chat request for action planning.
+        
+        Service: mllm_grounded_chat
+        
+        Combines chat with object detection in a single MLLM call.
+        The MLLM interprets the command AND locates the target object.
+        This eliminates the two-stage disconnect between action parsing and detection.
+        
+        Captures a FRESH frame (not cached) for accurate grounding.
+        """
+        rospy.loginfo(f"Grounded chat request: {request.prompt[:100]}...")
+        rospy.loginfo(f"Objects to detect: {request.detect_objects}")
+        
+        start_time = time.time()
+        
+        try:
+            # Capture FRESH frame for grounding (not cached)
+            # This ensures we're grounding on current scene, not stale image
+            image = None
+            if request.include_image:
+                image = self._get_fresh_image()
+            
+            # Use temperature from request or default
+            temperature = request.temperature if request.temperature > 0 else self.temperature
+            
+            # Call provider's grounded chat
+            response = self.provider.chat_with_grounding(
+                prompt=request.prompt,
+                detect_objects=list(request.detect_objects),
+                image=image,
+                temperature=temperature,
+            )
+            
+            latency_ms = (time.time() - start_time) * 1000
+            rospy.loginfo(f"Grounded chat response in {latency_ms:.0f}ms")
+            
+            if response.success:
+                rospy.loginfo(f"LLM output:\n{response.response_json}")
+                rospy.loginfo(f"Detections: {len(response.detections)} objects")
+                
+                # Convert detections to ROS message format
+                ros_detections = []
+                for det in response.detections:
+                    ros_det = DetectedObject()
+                    ros_det.label = det.label
+                    ros_det.score = det.score
+                    ros_det.center_x = det.center_x
+                    ros_det.center_y = det.center_y
+                    ros_det.width = det.width
+                    ros_det.height = det.height
+                    ros_detections.append(ros_det)
+                
+                return PromptMLLMWithGroundingResponse(
+                    response_json=response.response_json,
+                    detections=ros_detections,
+                    success=True,
+                    error_message="",
+                    latency_ms=latency_ms
+                )
+            else:
+                rospy.logerr(f"Grounded chat failed: {response.error_message}")
+                return PromptMLLMWithGroundingResponse(
+                    response_json="",
+                    detections=[],
+                    success=False,
+                    error_message=response.error_message,
+                    latency_ms=latency_ms
+                )
+                
+        except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            rospy.logerr(f"Grounded chat exception: {e}")
+            return PromptMLLMWithGroundingResponse(
+                response_json="",
+                detections=[],
+                success=False,
+                error_message=str(e),
+                latency_ms=latency_ms
+            )
+    
+    def _get_fresh_image(self) -> np.ndarray:
+        """
+        Capture a fresh frame from the camera.
+        
+        Uses rospy.wait_for_message to get the latest frame,
+        bypassing the image cache for maximum accuracy in grounding.
+        """
+        import sensor_msgs.msg
+        import cv_bridge
+        
+        bridge = cv_bridge.CvBridge()
+        img_msg = rospy.wait_for_message(
+            self.image_topic,
+            sensor_msgs.msg.Image,
+            timeout=5.0
+        )
+        return bridge.imgmsg_to_cv2(img_msg, "bgr8")
     
     def run(self):
         """Run the gateway node."""

@@ -10,26 +10,34 @@ from elmira.srv import (
     InverseKinematics,
     CheckLLMObjectVisibility,
     DetectWithMLLM,
+    PromptMLLMWithGrounding,
 )
+from elmira.msg import DetectedObject
 
 # v2 MLLM configuration - read from ROS params
 def get_mllm_config():
     """Get MLLM configuration from ROS params."""
     use_mllm = rospy.get_param("/use_mllm", False)
     use_mllm_grounding = rospy.get_param("/use_mllm_grounding", False)
+    use_grounded_action_planning = rospy.get_param("/use_grounded_action_planning", True)
     
     if use_mllm:
         visibility_service = "mllm_visibility"
         detection_service = "mllm_detect" if use_mllm_grounding else "object_detector"
+        grounded_chat_service = "mllm_grounded_chat"
     else:
         visibility_service = "llm_object_visibility"
         detection_service = "object_detector"
+        grounded_chat_service = None  # Not available in v1
+        use_grounded_action_planning = False  # Disable in v1
     
     return {
         "use_mllm": use_mllm,
         "use_mllm_grounding": use_mllm_grounding,
+        "use_grounded_action_planning": use_grounded_action_planning,
         "visibility_service": visibility_service,
         "detection_service": detection_service,
+        "grounded_chat_service": grounded_chat_service,
     }
 
 
@@ -541,3 +549,199 @@ class ConcurrentPlanAndVerify(smach.Concurrence):
             and outcome_map["CHECK_OBJECT_VISIBILITY"] == "succeeded"
         ):
             return "succeeded"
+
+
+class GroundedActionPlannerDirect(smach.StateMachine):
+    """
+    Action planner that uses pre-computed detections from grounded chat.
+    
+    This bypasses the separate detection step since the MLLM already
+    grounded the object during action interpretation. Uses the detection
+    results directly for coordinate transfer and IK solving.
+    
+    Supports bimanual manipulation - passes through hand_action and planning_group.
+    """
+    
+    def __init__(self):
+        super(GroundedActionPlannerDirect, self).__init__(
+            input_keys=[
+                "action_type",
+                "target_object",
+                "grounded_detections",  # Pre-computed detections from grounded chat
+                "table_z",
+                "motion_init_pose",
+                "llm_input",
+            ],
+            output_keys=[
+                "joint_trajectory",
+                "system_message",
+                "real_x",
+                "real_y",
+                "hand_action",
+                "planning_group",
+            ],
+            outcomes=["succeeded", "preempted", "aborted", "system_out"],
+        )
+        
+        # Get MLLM configuration for visibility service
+        mllm_config = get_mllm_config()
+        visibility_service = mllm_config["visibility_service"]
+        rospy.loginfo(f"GroundedActionPlannerDirect using visibility service: {visibility_service}")
+        
+        with self:
+            # Use pre-computed detections directly - skip detection step
+            smach.StateMachine.add(
+                "CHOOSE_TARGET_OBJECT",
+                GroundedObjectSelector(),  # Uses grounded_detections
+                transitions={
+                    "succeeded": "COORDINATE_TRANSFER",
+                    "object_not_found": "system_out",
+                    "object_out_of_reach": "system_out",
+                },
+            )
+            
+            # Coordinate transfer - using slots like original ActionPlanner
+            smach.StateMachine.add(
+                "COORDINATE_TRANSFER",
+                smach_ros.ServiceState(
+                    "image_to_real",
+                    CoordinateTransfer,
+                    request_slots=["image_x", "image_y"],
+                    response_slots=["real_x", "real_y"],
+                ),
+                transitions={"succeeded": "PLAN_ACTION_TARGETS"},
+            )
+            
+            # Action trajectory planning - with proper remapping like original
+            smach.StateMachine.add(
+                "PLAN_ACTION_TARGETS",
+                ActionTrajectory(),
+                transitions={
+                    "succeeded": "SOLVE_IK",
+                    "unknown_action": "system_out",
+                    "hand_action": "succeeded",  # Hand-only action, skip IK
+                },
+                remapping={
+                    "target_x": "real_x",
+                    "target_y": "real_y",
+                    "target_z": "table_z",
+                },
+            )
+            
+            # IK Solver - callback to create initial pose like original
+            def ik_request_callback(userdata, request):
+                initial_position = userdata.motion_init_pose[userdata.planning_group]
+                request.initial_position.joint_name = initial_position["names"]
+                request.initial_position.position = initial_position["positions"]
+                return request
+
+            # callback to post-process IK response like original
+            def ik_response_callback(userdata, response):
+                userdata.joint_trajectory = [
+                    {
+                        userdata.planning_group: {
+                            "names": position.joint_name,
+                            "positions": position.position,
+                        }
+                    }
+                    for position in response.positions
+                ] + [userdata.motion_init_pose]
+                return "succeeded"
+
+            smach.StateMachine.add(
+                "SOLVE_IK",
+                smach_ros.ServiceState(
+                    "inverse_kinematics",
+                    InverseKinematics,
+                    input_keys=["planning_group", "motion_init_pose"],
+                    request_slots=["planning_group", "poses"],
+                    output_keys=["joint_trajectory"],
+                    request_cb=ik_request_callback,
+                    response_cb=ik_response_callback,
+                ),
+                transitions={
+                    "succeeded": "succeeded",
+                },
+            )
+
+
+class GroundedObjectSelector(smach.State):
+    """
+    Object selector that uses pre-computed detections from grounded chat.
+    
+    Unlike ObjectSelector which receives detections from a separate call,
+    this uses grounded_detections already in userdata.
+    """
+    
+    def __init__(self):
+        smach.State.__init__(
+            self,
+            outcomes=["succeeded", "object_not_found", "object_out_of_reach"],
+            input_keys=["grounded_detections", "target_object"],
+            output_keys=["image_x", "image_y", "system_message"],
+        )
+        self.workspace = np.array([
+            [0.0396, 0.7160],
+            [0.2021, 0.3444],
+            [0.7646, 0.3278],
+            [0.9448, 0.7313],
+            [0.8162, 0.8069],
+            [0.6391, 0.8632],
+            [0.4380, 0.8757],
+            [0.2599, 0.8375],
+            [0.1328, 0.7771],
+        ])
+    
+    def within_workspace(self, x, y):
+        cross_products = np.array([
+            (x - self.workspace[i - 1][0])
+            * (self.workspace[i][1] - self.workspace[i - 1][1])
+            - (self.workspace[i][0] - self.workspace[i - 1][0])
+            * (y - self.workspace[i - 1][1])
+            for i in range(len(self.workspace))
+        ])
+        return np.logical_or(np.all(cross_products <= 0), np.all(cross_products >= 0))
+    
+    def execute(self, userdata):
+        rospy.loginfo("GroundedObjectSelector: Using pre-computed detections")
+        
+        detections = userdata.grounded_detections
+        if not detections:
+            userdata.system_message = "No grounded detections available"
+            rospy.logwarn(userdata.system_message)
+            return "object_not_found"
+        
+        # Find best matching detection for target object
+        target = userdata.target_object[0].lower() if userdata.target_object else ""
+        best_detection = None
+        best_score = 0.0
+        
+        for det in detections:
+            # Match by label similarity or just use highest confidence
+            if target in det.label.lower() or det.label.lower() in target:
+                if det.score > best_score:
+                    best_score = det.score
+                    best_detection = det
+        
+        # Fallback: use first detection if no label match
+        if best_detection is None and detections:
+            best_detection = detections[0]
+            rospy.logwarn(f"No label match for '{target}', using first detection: {best_detection.label}")
+        
+        if best_detection is None:
+            userdata.system_message = f"Object '{target}' not found in grounded detections"
+            return "object_not_found"
+        
+        x, y = best_detection.center_x, best_detection.center_y
+        
+        # Check if object is within workspace
+        if not self.within_workspace(x, y):
+            userdata.system_message = f"Object '{best_detection.label}' is out of reach"
+            rospy.logwarn(userdata.system_message)
+            return "object_out_of_reach"
+        
+        rospy.loginfo(f"Selected grounded object: {best_detection.label} at ({x:.3f}, {y:.3f})")
+        userdata.image_x = x
+        userdata.image_y = y
+        return "succeeded"
+
