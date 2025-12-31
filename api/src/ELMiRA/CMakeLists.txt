@@ -53,6 +53,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
     FILES
     DetectedObject.msg
+    DetectedObjectArray.msg
     JointPosition.msg
     # v2 MLLM messages
     MLLMDetection.msg

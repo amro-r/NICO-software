@@ -35,7 +35,7 @@ from elmira.srv import (
     DetectWithMLLM, DetectWithMLLMResponse,
     PromptMLLMWithGrounding, PromptMLLMWithGroundingResponse,
 )
-from elmira.msg import DetectedObject
+from elmira.msg import DetectedObject, DetectedObjectArray
 
 # Import v2 components (absolute imports now that path is set up)
 from providers import get_provider, BaseMLLMProvider
@@ -95,6 +95,9 @@ class MLLMGateway:
         
         # Grounded chat service for action planning
         rospy.Service("mllm_grounded_chat", PromptMLLMWithGrounding, self.handle_grounded_chat)
+        
+        # Publisher for detection visualization
+        self.detection_pub = rospy.Publisher("/elmira/detections", DetectedObjectArray, queue_size=1)
         
         rospy.loginfo(f"MLLM Gateway started with provider: {self.provider_name}")
         rospy.loginfo(f"Model: {self.provider.model if self.provider else 'N/A'}")
@@ -398,6 +401,9 @@ class MLLMGateway:
                     ros_det.height = det.height
                     ros_detections.append(ros_det)
                 
+                # Publish detections for visualization
+                self._publish_detections(ros_detections)
+                
                 return PromptMLLMWithGroundingResponse(
                     response_json=response.response_json,
                     detections=ros_detections,
@@ -425,6 +431,19 @@ class MLLMGateway:
                 error_message=str(e),
                 latency_ms=latency_ms
             )
+    
+    def _publish_detections(self, detections):
+        """Publish detections for visualization node."""
+        try:
+            from std_msgs.msg import Header
+            msg = DetectedObjectArray()
+            msg.header = Header()
+            msg.header.stamp = rospy.Time.now()
+            msg.detections = detections
+            self.detection_pub.publish(msg)
+            rospy.logdebug(f"Published {len(detections)} detections for visualization")
+        except Exception as e:
+            rospy.logwarn(f"Failed to publish detections: {e}")
     
     def _get_fresh_image(self) -> np.ndarray:
         """

@@ -62,6 +62,9 @@
     <!-- IK Solver -->
     <node name="ik_solver" pkg="elmira" type="ik_solver.py" required="true" output="screen"/>
     
+    <!-- Detection Visualizer (debug visualization) -->
+    <node name="detection_visualizer" pkg="elmira" type="detection_visualizer.py" output="screen"/>
+    
     <!-- Text to Speech -->
     <node name="text_to_speech" pkg="nicoros" type="TextToSpeech.py" 
           required="true" output="screen"/>

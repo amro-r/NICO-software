@@ -1,0 +1,167 @@
+<?xml version="1.0" ?>
+<!-- 
+  4-Joint Left Arm URDF (No Wrist)
+  
+  This URDF excludes wrist joints (l_wrist_z, l_wrist_x) since those motors
+  are not configured/working on this robot. IK will only use:
+  - l_shoulder_z
+  - l_shoulder_y
+  - l_arm_x
+  - l_elbow_y
+  
+  The TCP is attached to the lower arm at a fixed position approximating
+  where the hand would be if the wrist were in a neutral position.
+-->
+<robot name="nico_left_arm_no_wrist">
+	<link name="torso:11">
+		<visual>
+			<geometry>
+				<mesh filename="./meshes/torso_iam_fb80b350.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="-0.026368 -0.075212 0.525308"/>
+			<material name="torso:11_color">
+				<color rgba="0.270588 0.270588 0.270588 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<mesh filename="./meshes/torso_iam_fb80b350.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="-0.026368 -0.075212 0.525308"/>
+		</collision>
+		<inertial>
+			<mass value="0.607828"/>
+			<inertia ixx="0.006338" ixy="0.000004" ixz="0.000248" iyy="0.005208" iyz="0.000001" izz="0.002162"/>
+			<origin rpy="0 0 0" xyz="0.01632 -0.000121 0.649656"/>
+		</inertial>
+	</link>
+	<link name="left_shoulder:11">
+		<visual>
+			<geometry>
+				<mesh filename="./meshes/left_shoulder_up_iam_1ca4d925.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="0.014919 0.097299 -0.01461"/>
+			<material name="left_shoulder:11_color">
+				<color rgba="0.176471 0.176471 0.176471 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<mesh filename="./meshes/left_shoulder_up_iam_1ca4d925.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="0.014919 0.097299 -0.01461"/>
+		</collision>
+		<inertial>
+			<mass value="0.084038"/>
+			<inertia ixx="0.000026" ixy="-0.000001" ixz="-0.000002" iyy="0.000034" iyz="-0" izz="0.000033"/>
+			<origin rpy="0 0 0" xyz="0.005702 0.000175 0.033153"/>
+		</inertial>
+	</link>
+	<joint name="l_shoulder_z" type="revolute">
+		<parent link="torso:11"/>
+		<child link="left_shoulder:11"/>
+		<origin rpy="0 0 0.019617" xyz="0.026783 0.049488 0.748809"/>
+		<axis xyz="0 0 1"/>
+		<limit effort="30" lower="-1.308996939" upper="0.959931088597" velocity="1"/>
+	</joint>
+	<link name="left_collarbone:11">
+		<visual>
+			<geometry>
+				<mesh filename="./meshes/left_upper_arm_iam_49d50008.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="-0.00032 -0.000277 0.000298"/>
+			<material name="left_collarbone:11_color">
+				<color rgba="0.176471 0.176471 0.176471 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<mesh filename="./meshes/left_upper_arm_iam_49d50008.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="-0.00032 -0.000277 0.000298"/>
+		</collision>
+		<inertial>
+			<mass value="0.024811"/>
+			<inertia ixx="0.000014" ixy="0" ixz="0" iyy="0.000011" iyz="0.000001" izz="0.000019"/>
+			<origin rpy="0 0 0" xyz="-0 0.041345 -0.002364"/>
+		</inertial>
+	</link>
+	<joint name="l_shoulder_y" type="revolute">
+		<parent link="left_shoulder:11"/>
+		<child link="left_collarbone:11"/>
+		<origin rpy="0 -0.00445 -0.019538" xyz="-0.021627 0.020528 0.037"/>
+		<axis xyz="0 1 0"/>
+		<limit effort="30" lower="-1.7453292519943295" upper="0.523598775598" velocity="1"/>
+	</joint>
+	<link name="left_upper_arm:11">
+		<visual>
+			<geometry>
+				<mesh filename="./meshes/left_lower_arm_iam_5be2a521.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="-0.044837 -0.009349 -0.161585"/>
+			<material name="left_upper_arm:11_color">
+				<color rgba="0.176471 0.176471 0.176471 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<mesh filename="./meshes/left_lower_arm_iam_5be2a521.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="-0.044837 -0.009349 -0.161585"/>
+		</collision>
+		<inertial>
+			<mass value="0.192388"/>
+			<inertia ixx="0.00085" ixy="0" ixz="-0.00005" iyy="0.000853" iyz="0.000001" izz="0.000052"/>
+			<origin rpy="0 0 0" xyz="-0.028636 -0.000703 -0.084224"/>
+		</inertial>
+	</link>
+	<joint name="l_arm_x" type="revolute">
+		<parent link="left_collarbone:11"/>
+		<child link="left_upper_arm:11"/>
+		<origin rpy="0.000683 -0.051282 -0.000035" xyz="0.0245 0.073663 -0.022853"/>
+		<axis xyz="1 0 0"/>
+		<limit effort="30" lower="0.0" upper="2.05948851735" velocity="1"/>
+	</joint>
+	<link name="left_lower_arm:11">
+		<visual>
+			<geometry>
+				<mesh filename="./meshes/right_wrist_MIR_iam_dcfe6de3.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="0.000017 -0.010775 -0.12546"/>
+			<material name="left_lower_arm:11_color">
+				<color rgba="0.176471 0.176471 0.176471 1"/>
+			</material>
+		</visual>
+		<collision>
+			<geometry>
+				<mesh filename="./meshes/right_wrist_MIR_iam_dcfe6de3.STL" scale="0.001 0.001 0.001"/>
+			</geometry>
+			<origin rpy="0 0 0" xyz="0.000017 -0.010775 -0.12546"/>
+		</collision>
+		<inertial>
+			<mass value="0.076791"/>
+			<inertia ixx="0.000104" ixy="-0" ixz="-0" iyy="0.000095" iyz="0.000002" izz="0.000021"/>
+			<origin rpy="0 0 0" xyz="0 -0.022485 -0.081055"/>
+		</inertial>
+	</link>
+	<joint name="l_elbow_y" type="revolute">
+		<parent link="left_upper_arm:11"/>
+		<child link="left_lower_arm:11"/>
+		<origin rpy="0 0.055976 0" xyz="-0.034583 0.023066 -0.169859"/>
+		<axis xyz="0 -1 0"/>
+		<limit effort="30" lower="0" upper="1.745" velocity="1"/>
+	</joint>
+	<!-- TCP (Tool Center Point) attached directly to lower arm
+	     Position approximates where hand would be with wrist in neutral position.
+	     Calculated by combining the original wrist joint positions -->
+	<link name="left_tcp">
+		<origin rpy="0 0 0" xyz="0 0 0"/>
+	</link>
+	<joint name="l_tcp_point" type="fixed">
+		<parent link="left_lower_arm:11"/>
+		<child link="left_tcp"/>
+		<!-- Combined transform: through wrist_z, wrist_x, and grasp point
+		     This positions the TCP at the approximate hand location -->
+		<origin rpy="3.141593 -1.25663706 -1.54209333" xyz="0.023416 -0.058471 -0.09"/>
+	</joint>
+</robot>

@@ -18,8 +18,9 @@ class KinematicsServer:
         else:
             self.device = torch.device("cpu")
             rospy.logwarn("EvoIK using CPU (CUDA not available)")
+        # Left arm uses 4-joint URDF (no wrist) since wrist motors are not functional
         self.left_arm = EvoIK(
-            join(urdf_dir, "nico_left_arm.urdf"), "left_tcp", device=self.device
+            join(urdf_dir, "nico_left_arm_no_wrist.urdf"), "left_tcp", device=self.device
         )
         self.right_arm = EvoIK(
             join(urdf_dir, "nico_right_arm.urdf"), "right_tcp", device=self.device
@@ -39,12 +40,14 @@ class KinematicsServer:
             rospy.logerr(f"Unknown planning group {request.planning_group}")
             return
         # ensure that initial position is in the right order
+        # Get number of joints from the solver (4 for left arm, 6 for right arm)
+        num_joints = len(solver.joint_names)
         joint_ids = np.argsort(request.initial_position.joint_name)
         initial_joints = torch.tensor(request.initial_position.position)[
             joint_ids[
                 np.searchsorted(
                     request.initial_position.joint_name,
-                    solver.joint_names[:6],
+                    solver.joint_names[:num_joints],
                     sorter=joint_ids,
                 )
             ]
@@ -53,7 +56,7 @@ class KinematicsServer:
         results = []
         for pose in request.poses:
             ik_result = JointPosition()
-            ik_result.joint_name = solver.joint_names[:6]
+            ik_result.joint_name = solver.joint_names[:num_joints]
             pos = pose.position
             quat = pose.orientation
             ik_result.position = solver.inverse_kinematics(
