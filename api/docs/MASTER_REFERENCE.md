@@ -33,7 +33,7 @@ The codebase utilizes several key software design patterns to ensure scalability
 *   **AI & Machine Learning:**
     *   **Frameworks:** PyTorch, NumPy.
     *   **Perception:** OpenAI Whisper (ASR), OWLv2 (Object Detection), OpenCV.
-    *   **Reasoning:** GPT-4o, Gemini 2.5 Flash (via API).
+    *   **Reasoning:** GPT-4o, Gemini 3 Flash (via API).
 *   **Kinematics & Control:**
     *   **Libraries:** `gaikpy`, `math3d`, `transforms3d`.
     *   **Solvers:** **EvoIK** (GPU-accelerated evolutionary inverse kinematics).
@@ -208,8 +208,12 @@ api/
     *   `KinematicsServer`: The ROS node class.
     *   `EvoIK`: A PyTorch-based IK solver library.
 *   **Internal Logic:**
-    1.  Loads URDF models for `nico_left_arm` and `nico_right_arm`.
+    1.  Loads URDF models: `nico_right_arm.urdf` (6 joints) and `nico_left_arm_no_wrist.urdf` (4 joints).
     2.  Uses `evo_ik` (gradient descent) to iteratively solve for joint angles that minimize the error between the end-effector and the target.
+    3.  Supports GPU acceleration via CUDA when available.
+*   **Configuration:**
+    *   `max_steps=100`: Maximum iterations for IK solver
+    *   Left arm uses reduced joint set due to non-functional wrist motors
 *   **Dependencies:** `evo_ik`, `torch`, `numpy`.
 *   **Integration Points:** Service: `inverse_kinematics`.
 
@@ -340,7 +344,7 @@ api/
 
 > **Note:** Left hand (wrist/fingers) motors have physical issues but the left arm (shoulder/elbow) is functional and can be used for pointing/pushing actions.
 
-### 4.2 Recent Fixes (December 2024)
+### 4.2 Recent Fixes (December 2024 - January 2026)
 
 #### SMACH Userdata Fix
 *   **File:** `action_planner.py`
@@ -362,10 +366,25 @@ api/
 *   **Issue:** Only right eye camera was publishing
 *   **Fix:** Changed mode from `"right"` to `"stereo"` to enable both cameras
 
-### 4.3 Coordinate System
+#### Left Arm IK Configuration (January 2026)
+*   **File:** `ik_solver.py`
+*   **Issue:** Left arm IK failing due to non-functional wrist motors
+*   **Fix:** Created `nico_left_arm_no_wrist.urdf` with 4 joints (shoulder/elbow only), IK solver now uses appropriate URDF per arm
 
-The robot uses a **fixed Z-height assumption** for all object interactions:
+### 4.3 Coordinate System & Mapping Pipeline
 
+The robot uses a **learned implicit coordinate transfer** to map 2D image coordinates to 3D table coordinates:
+
+#### Coordinate Transfer Pipeline
+```
+Bounding Box (MLLM) → Center Point (0-1) → MLP Network → Real-World (X, Y meters)
+```
+
+1. **Input:** Normalized image coordinates (0-1 range) from bounding box center
+2. **Network:** `ImplicitCoordinateTransfer` MLP (4→1024→1024→1) with derivative-free optimization
+3. **Output:** Real-world X, Y coordinates in meters relative to robot base
+
+#### Fixed Z-Height Assumption
 ```python
 # In state_machine.py
 sm.userdata.table_z = 0.68  # Fixed table height in meters
@@ -373,6 +392,25 @@ sm.userdata.table_z = 0.68  # Fixed table height in meters
 
 *   **X, Y coordinates:** Provided by MLLM detection → Coordinate Transfer MLP
 *   **Z coordinate:** Hardcoded as `table_z` (robot cannot detect object height)
+
+#### Gemini Bounding Box Format
+Gemini returns `box_2d` in `[y_min, x_min, y_max, x_max]` format with 0-1000 scale:
+```python
+# In google_provider.py
+y_min, x_min, y_max, x_max = [v / 1000.0 for v in box[:4]]
+center_x = (x_min + x_max) / 2  # Normalized 0-1
+center_y = (y_min + y_max) / 2  # Normalized 0-1
+```
+
+#### Workspace Polygon
+Objects are validated against a 9-vertex polygon defining reachable table area:
+```python
+workspace = np.array([
+    [0.0396, 0.7160], [0.2021, 0.3444], [0.7646, 0.3278],
+    [0.9448, 0.7313], [0.8162, 0.8069], [0.6391, 0.8632],
+    [0.4380, 0.8757], [0.2599, 0.8375], [0.1328, 0.7771],
+])
+```
 
 ### 4.4 Arm Selection Logic
 
@@ -430,7 +468,7 @@ rqt_image_view
 
 ---
 
-## 5. Recent Enhancements (December 2024)
+## 5. Recent Enhancements (December 2024 - January 2026)
 
 ### 5.1 Conversation Memory
 
@@ -486,12 +524,83 @@ roslaunch elmira init_nodes_v2.launch use_grounded_action_planning:=false
 - `GROUNDED_PLAN_ACTION`: Uses `GroundedActionPlannerDirect` with pre-computed detections
 - `GroundedObjectSelector`: Selects objects from grounded detections
 
-### 5.3 New ROS Services
+### 5.3 Gemini 3 Flash Integration (January 2026)
+
+Updated Google provider to use Gemini 3 Flash preview model.
+
+**Changes:**
+- Model: `gemini-3-flash-preview` (previously `gemini-2.5-flash`)
+- Native bounding box grounding support (0-1000 coordinate scale)
+- Increased max_tokens to 4096 for complex responses
+
+### 5.4 Detection Visualization
+
+Real-time visualization of MLLM detections with bounding boxes.
+
+**Features:**
+- Publishes to `/elmira/debug/detections` topic
+- Draws bounding boxes with labels and coordinates on camera feed
+- Workspace polygon overlay showing reachable area
+
+**Usage:**
+```bash
+# View detections in rqt
+rqt_image_view /elmira/debug/detections
+```
+
+### 5.5 New ROS Services
 
 | Service | Type | Description |
 |---------|------|-------------|
 | `/mllm_grounded_chat` | `PromptMLLMWithGrounding` | Combined action + detection in one call |
 | `/mllm_reset_conversation` | `std_srvs/Trigger` | Clear conversation history |
+| `/mllm_chat` | `PromptTextLLM` | Text-only chat (v2 gateway) |
+| `/mllm_vision` | `PromptVisionLLM` | Vision + text chat (v2 gateway) |
+| `/mllm_visibility` | `CheckLLMObjectVisibility` | Check if object is visible |
+| `/mllm_detect` | `DetectWithMLLM` | Detect objects with bounding boxes |
+
+### 5.6 Latency Benchmarking (January 2026)
+
+Performance benchmarking system to measure the unified MLLM cognitive core latency.
+
+**Research Context:**
+- **Baseline (ELMiRA v1):** GPT-4 + GPT-4V averaged 8.98 seconds
+- **Target (ELMiRA v2):** <8.08 seconds (10% reduction)
+
+**Measurement Window:**
+- **Start Timer:** Immediately after ASR completes (transcript available)
+- **Stop Timer:** When MLLM returns JSON/structured output (Mode/Action/Target)
+- **Excludes:** Robot physical movement (IK/Motion), TTS generation, ASR transcription
+
+**Usage:**
+```bash
+# Enable latency tracking
+roslaunch elmira init_nodes_v2.launch track_latency:=true
+
+# Custom log directory (optional)
+roslaunch elmira init_nodes_v2.launch track_latency:=true latency_log_dir:=/path/to/logs
+```
+
+**Log Output:**
+- CSV files stored in `~/.elmira/latency_logs/latency_YYYYMMDD_HHMMSS.csv`
+- Real-time console output with benchmark comparison
+- Summary statistics printed on node shutdown
+
+**Log Format (CSV):**
+```csv
+timestamp,operation_type,latency_ms,provider,model,success,input_length,output_length,detections_count,notes
+```
+
+**Operation Types Tracked:**
+| Type | Description |
+|------|-------------|
+| `chat` | Text-only LLM processing |
+| `vision` | Vision + text (scene description) |
+| `grounded_chat` | Combined action + detection (primary metric) |
+| `detect` | Object detection only |
+| `visibility` | Object visibility check |
+
+**Implementation:** [latency_tracker.py](../src/ELMiRA/scripts/v2/utils/latency_tracker.py)
 
 ---
 
@@ -500,8 +609,110 @@ roslaunch elmira init_nodes_v2.launch use_grounded_action_planning:=false
 | Branch | Description |
 |--------|-------------|
 | `master` | Original NICO software |
-| `NICO-Amro` | Active development branch |
+| `NICO-Amro` | Main development branch |
 | `NICO-Amro-backup-*` | Backup branches with dates |
 | `feat/handshake` | Feature branch for handshake development |
-| `feat/visual-grounding-action-planning` | Grounded action planning feature |
-| `feat/mllm-conversation-memory` | Conversation memory implementation |
+| `feat/visual-grounding-action-planning` | Grounded action planning feature (merged) |
+| `feat/mllm-conversation-memory` | Conversation memory implementation (merged) |
+| `feat/view_detected_objects` | **Current** - Detection visualization feature |
+
+---
+
+## 7. Known Issues & Debugging
+
+### 7.1 Trajectory Execution Issues
+
+**Symptom:** Robot arm moves partially toward target, then returns to init position without completing the action.
+
+**Potential Causes:**
+1. **IK solution quality** — EvoIK may return partial solutions for edge-of-workspace targets
+2. **Coordinate transfer accuracy** — MLP may output positions beyond robot's physical reach
+3. **Hardware serial timeout** — pypot motor communication can drop after extended operations
+
+**Debugging Steps:**
+```bash
+# Check IK target positions in logs
+# Look for: "Real coordinates: x=..., y=..."
+# Verify target is within workspace polygon
+
+# Monitor for serial errors
+# Look for: "device reports readiness to read but returned no data"
+```
+
+### 7.2 MLLM Detection Accuracy
+
+**Symptom:** Bounding boxes appear correct in visualization but robot targets wrong position.
+
+**Debugging:**
+1. Verify bounding box format (Gemini: `[y_min, x_min, y_max, x_max]` in 0-1000 scale)
+2. Check normalization: values should be 0-1 after division by 1000
+3. Confirm object is within workspace polygon before coordinate transfer
+
+### 7.3 Userdata Key Errors
+
+**Symptom:** `Userdata key 'X' not available` warning in logs
+
+**Cause:** SMACH state declares output_keys but doesn't write to them on all code paths.
+
+**Impact:** Non-fatal warning; execution continues. Fix by ensuring all declared output_keys are written.
+
+---
+
+## 8. Architecture Diagrams
+
+### 8.1 ELMiRA v2 Service Architecture
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      State Machine (SMACH)                      │
+├─────────────────────────────────────────────────────────────────┤
+│  SPEECH_ASR → LLM_SPEECH_PROCESSOR → EXECUTE_ACTIONS → ...      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+      ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
+      │  MLLM Gateway │ │ IK Solver    │ │ Coord Xfer   │
+      │  (llm_api_v2) │ │ (EvoIK)      │ │ (MLP)        │
+      └──────────────┘ └──────────────┘ └──────────────┘
+              │
+      ┌───────┴───────┐
+      ▼               ▼
+┌──────────────┐ ┌──────────────┐
+│ Google       │ │ OpenAI       │
+│ Provider     │ │ Provider     │
+│ (Gemini 3)   │ │ (GPT-4o)     │
+└──────────────┘ └──────────────┘
+```
+
+### 8.2 Grounded Action Planning Flow
+```
+User Speech → ASR → LLM Scene Description
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │ DECIDE_GROUNDED_PATH  │
+              └───────────────────────┘
+                    │           │
+        (grounded)  │           │  (separate)
+                    ▼           ▼
+        ┌─────────────────┐ ┌─────────────────┐
+        │ GROUNDED_ACTION │ │ PLAN_ACTION_    │
+        │ _CHAT           │ │ TRAJECTORY      │
+        │ (single MLLM)   │ │ (detect + plan) │
+        └─────────────────┘ └─────────────────┘
+                    │           │
+                    └─────┬─────┘
+                          ▼
+              ┌───────────────────────┐
+              │ COORDINATE_TRANSFER   │
+              │ → PLAN_ACTION_TARGETS │
+              │ → SOLVE_IK            │
+              └───────────────────────┘
+                          │
+                          ▼
+              ┌───────────────────────┐
+              │ JOINT_TRAJECTORY_     │
+              │ ITERATOR              │
+              │ (execute + init pose) │
+              └───────────────────────┘
+```

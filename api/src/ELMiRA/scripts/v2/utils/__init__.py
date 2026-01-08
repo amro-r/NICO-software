@@ -12,3 +12,7 @@ if str(_utils_dir) not in sys.path:
     sys.path.insert(0, str(_utils_dir))
 
 from image_cache import CachedImageGrabber, get_cached_grabber
+from latency_tracker import (
+    LatencyTracker, OperationType, LatencyRecord,
+    init_tracker, get_tracker, shutdown_tracker
+)

@@ -40,6 +40,10 @@ from elmira.msg import DetectedObject, DetectedObjectArray
 # Import v2 components (absolute imports now that path is set up)
 from providers import get_provider, BaseMLLMProvider
 from utils.image_cache import CachedImageGrabber
+from utils.latency_tracker import (
+    LatencyTracker, OperationType,
+    init_tracker, get_tracker, shutdown_tracker
+)
 
 
 class MLLMGateway:
@@ -65,12 +69,24 @@ class MLLMGateway:
         self.image_topic = rospy.get_param("~image_topic", "/nico/vision/right")
         self.cache_duration = rospy.get_param("~cache_duration", 0.5)
         
+        # Latency tracking configuration
+        self.track_latency = rospy.get_param("~track_latency", False)
+        self.latency_log_dir = rospy.get_param("~latency_log_dir", "")
+        
         # Get API key from environment
         self.api_key = self._get_api_key()
         
         # Initialize provider
         self.provider: Optional[BaseMLLMProvider] = None
         self._init_provider()
+        
+        # Initialize latency tracker (for benchmarking MLLM cognitive core latency)
+        self.latency_tracker = init_tracker(
+            enabled=self.track_latency,
+            log_dir=self.latency_log_dir if self.latency_log_dir else None,
+            provider=self.provider_name,
+            model=self.provider.model if self.provider else "unknown",
+        )
         
         # Initialize image cache
         self.image_cache = CachedImageGrabber(
@@ -161,9 +177,25 @@ class MLLMGateway:
             
             if response.success:
                 rospy.loginfo(f"LLM output:\n{response.response_json}")
+                # Track successful latency (this is the core cognitive latency)
+                self.latency_tracker.record(
+                    operation_type=OperationType.CHAT,
+                    latency_ms=latency_ms,
+                    success=True,
+                    input_length=len(request.prompt),
+                    output_length=len(response.response_json),
+                )
                 return PromptTextLLMResponse(response=response.response_json)
             else:
                 rospy.logerr(f"Chat failed: {response.error_message}")
+                # Track failed request
+                self.latency_tracker.record(
+                    operation_type=OperationType.CHAT,
+                    latency_ms=latency_ms,
+                    success=False,
+                    input_length=len(request.prompt),
+                    notes=response.error_message,
+                )
                 # Return error as JSON for backward compatibility
                 error_response = json.dumps({
                     "actions": [
@@ -174,7 +206,16 @@ class MLLMGateway:
                 return PromptTextLLMResponse(response=error_response)
                 
         except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
             rospy.logerr(f"Chat exception: {e}")
+            # Track exception
+            self.latency_tracker.record(
+                operation_type=OperationType.CHAT,
+                latency_ms=latency_ms,
+                success=False,
+                input_length=len(request.prompt),
+                notes=f"Exception: {e}",
+            )
             error_response = json.dumps({
                 "actions": [
                     {"action": "speak", "text": "Sorry, something went wrong."}
@@ -209,9 +250,23 @@ class MLLMGateway:
             
             if response.success:
                 rospy.loginfo(f"LLM output:\n{response.response_json}")
+                # Track successful vision latency
+                self.latency_tracker.record(
+                    operation_type=OperationType.VISION,
+                    latency_ms=latency_ms,
+                    success=True,
+                    output_length=len(response.response_json),
+                )
                 return PromptVisionLLMResponse(response=response.response_json)
             else:
                 rospy.logerr(f"Vision failed: {response.error_message}")
+                # Track failed vision request
+                self.latency_tracker.record(
+                    operation_type=OperationType.VISION,
+                    latency_ms=latency_ms,
+                    success=False,
+                    notes=response.error_message,
+                )
                 error_response = json.dumps({
                     "actions": [
                         {"action": "speak", "text": "Sorry, I had trouble seeing the table."}
@@ -221,7 +276,15 @@ class MLLMGateway:
                 return PromptVisionLLMResponse(response=error_response)
                 
         except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
             rospy.logerr(f"Vision exception: {e}")
+            # Track exception
+            self.latency_tracker.record(
+                operation_type=OperationType.VISION,
+                latency_ms=latency_ms,
+                success=False,
+                notes=f"Exception: {e}",
+            )
             error_response = json.dumps({
                 "actions": [
                     {"action": "speak", "text": "Sorry, I couldn't process the image."}
@@ -253,13 +316,31 @@ class MLLMGateway:
             latency_ms = (time.time() - start_time) * 1000
             rospy.loginfo(f"Visibility check in {latency_ms:.0f}ms: visible={visible}")
             
+            # Track visibility check latency
+            self.latency_tracker.record(
+                operation_type=OperationType.VISIBILITY,
+                latency_ms=latency_ms,
+                success=True,
+                input_length=len(request.prompt),
+                notes=f"visible={visible}",
+            )
+            
             return CheckLLMObjectVisibilityResponse(
                 object_visible=visible,
                 system_message=message
             )
             
         except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
             rospy.logerr(f"Visibility check exception: {e}")
+            # Track failed visibility check
+            self.latency_tracker.record(
+                operation_type=OperationType.VISIBILITY,
+                latency_ms=latency_ms,
+                success=False,
+                input_length=len(request.prompt),
+                notes=f"Exception: {e}",
+            )
             return CheckLLMObjectVisibilityResponse(
                 object_visible=False,
                 system_message=f"SYSTEM: Visibility check failed: {e}"
@@ -307,6 +388,14 @@ class MLLMGateway:
                 ros_det.height = det.height
                 ros_detections.append(ros_det)
             
+            # Track detection latency
+            self.latency_tracker.record(
+                operation_type=OperationType.DETECT,
+                latency_ms=latency_ms,
+                success=True,
+                detections_count=len(ros_detections),
+            )
+            
             return DetectWithMLLMResponse(
                 objects=ros_detections,
                 success=True,
@@ -317,6 +406,13 @@ class MLLMGateway:
         except Exception as e:
             latency_ms = (time.time() - start_time) * 1000
             rospy.logerr(f"MLLM detection exception: {e}")
+            # Track failed detection
+            self.latency_tracker.record(
+                operation_type=OperationType.DETECT,
+                latency_ms=latency_ms,
+                success=False,
+                notes=f"Exception: {e}",
+            )
             return DetectWithMLLMResponse(
                 objects=[],
                 success=False,
@@ -404,6 +500,17 @@ class MLLMGateway:
                 # Publish detections for visualization
                 self._publish_detections(ros_detections)
                 
+                # Track grounded chat latency - THIS IS THE KEY COGNITIVE CORE METRIC
+                # Measures: ASR complete → MLLM returns Mode/Action/Target JSON
+                self.latency_tracker.record(
+                    operation_type=OperationType.GROUNDED_CHAT,
+                    latency_ms=latency_ms,
+                    success=True,
+                    input_length=len(request.prompt),
+                    output_length=len(response.response_json),
+                    detections_count=len(ros_detections),
+                )
+                
                 return PromptMLLMWithGroundingResponse(
                     response_json=response.response_json,
                     detections=ros_detections,
@@ -413,6 +520,14 @@ class MLLMGateway:
                 )
             else:
                 rospy.logerr(f"Grounded chat failed: {response.error_message}")
+                # Track failed grounded chat
+                self.latency_tracker.record(
+                    operation_type=OperationType.GROUNDED_CHAT,
+                    latency_ms=latency_ms,
+                    success=False,
+                    input_length=len(request.prompt),
+                    notes=response.error_message,
+                )
                 return PromptMLLMWithGroundingResponse(
                     response_json="",
                     detections=[],
@@ -424,6 +539,14 @@ class MLLMGateway:
         except Exception as e:
             latency_ms = (time.time() - start_time) * 1000
             rospy.logerr(f"Grounded chat exception: {e}")
+            # Track exception
+            self.latency_tracker.record(
+                operation_type=OperationType.GROUNDED_CHAT,
+                latency_ms=latency_ms,
+                success=False,
+                input_length=len(request.prompt),
+                notes=f"Exception: {e}",
+            )
             return PromptMLLMWithGroundingResponse(
                 response_json="",
                 detections=[],
@@ -466,9 +589,21 @@ class MLLMGateway:
     def run(self):
         """Run the gateway node."""
         rospy.loginfo("MLLM Gateway running...")
-        rospy.spin()
         
-        # Cleanup
+        # Register shutdown hook to print latency summary
+        rospy.on_shutdown(self._on_shutdown)
+        
+        rospy.spin()
+    
+    def _on_shutdown(self):
+        """Cleanup on node shutdown."""
+        rospy.loginfo("MLLM Gateway shutting down...")
+        
+        # Print latency benchmarking summary
+        if self.latency_tracker:
+            shutdown_tracker()
+        
+        # Stop image cache
         self.image_cache.stop()
         rospy.loginfo("MLLM Gateway shutdown complete")
 
