@@ -28,9 +28,9 @@ from base import (
 
 
 class OpenAIProvider(BaseMLLMProvider):
-    """OpenAI GPT-4o provider with conversation memory."""
+    """OpenAI GPT-5.2 provider with conversation memory."""
     
-    DEFAULT_MODEL = "gpt-4o"
+    DEFAULT_MODEL = "gpt-5.2"
     MAX_HISTORY_TURNS = 10  # Limit history to prevent token overflow
     
     def __init__(
