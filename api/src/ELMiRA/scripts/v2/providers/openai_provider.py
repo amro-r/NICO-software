@@ -31,7 +31,7 @@ class OpenAIProvider(BaseMLLMProvider):
     """OpenAI GPT-5.2 provider with conversation memory."""
     
     DEFAULT_MODEL = "gpt-5.2"
-    MAX_HISTORY_TURNS = 10  # Limit history to prevent token overflow
+    MAX_HISTORY_TURNS = 20  # Limit history to prevent token overflow
     
     def __init__(
         self,
