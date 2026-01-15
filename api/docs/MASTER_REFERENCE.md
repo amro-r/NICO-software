@@ -602,6 +602,71 @@ timestamp,operation_type,latency_ms,provider,model,success,input_length,output_l
 
 **Implementation:** [latency_tracker.py](../src/ELMiRA/scripts/v2/utils/latency_tracker.py)
 
+### 5.7 Accuracy Benchmarking (January 2026)
+
+Accuracy benchmarking system to validate the unified MLLM architecture against the baseline ELMiRA v1 system.
+
+**Research Context:**
+- **Baseline (ELMiRA v1):** 46.67% accuracy
+- **Target (ELMiRA v2):** >67% accuracy (20% improvement)
+
+**Measurement Modes:**
+| Mode | What's Measured | Image Saved |
+|------|-----------------|-------------|
+| `describe` | Scene description accuracy | Raw image (no bboxes) |
+| `act` | Action + localization accuracy | Image WITH bounding boxes |
+| `speak` | Knowledge/conversation accuracy | No image |
+
+**Usage:**
+```bash
+# Enable accuracy tracking
+roslaunch elmira init_nodes_v2.launch track_accuracy:=true
+
+# Enable both latency and accuracy tracking
+roslaunch elmira init_nodes_v2.launch track_latency:=true track_accuracy:=true
+
+# Custom log directory (optional)
+roslaunch elmira init_nodes_v2.launch track_accuracy:=true accuracy_log_dir:=/path/to/logs
+```
+
+**Log Output:**
+- Session directory: `~/.elmira/accuracy_logs/session_YYYYMMDD_HHMMSS/`
+- CSV file: `accuracy_YYYYMMDD_HHMMSS.csv`
+- Images directory: `images/` (annotated with bounding boxes for act mode)
+- Summary statistics printed on node shutdown
+
+**Log Format (CSV):**
+```csv
+timestamp,session_id,interaction_id,asr_transcript,mode_selected,action_type,target_object,image_path,has_bounding_boxes,detections_json,detection_count,selected_bbox_x,selected_bbox_y,selected_bbox_w,selected_bbox_h,robot_output,response_json,success,failure_reason,manual_verdict,notes
+```
+
+**Key Columns:**
+| Column | Description |
+|--------|-------------|
+| `asr_transcript` | User's spoken input |
+| `mode_selected` | speak, describe, or act |
+| `image_path` | Absolute path to saved image |
+| `has_bounding_boxes` | True if image has bbox overlay (act mode) |
+| `detections_json` | JSON array of all detected objects with bbox coords |
+| `selected_bbox_*` | Normalized (0-1) coords of selected target object |
+| `robot_output` | Robot's TTS response or description |
+| `manual_verdict` | **Empty column for human annotation:** correct/incorrect/partial |
+| `notes` | **Empty column for human notes** |
+
+**Manual Review Process:**
+1. Run robot interaction session with `track_accuracy:=true`
+2. Open generated CSV file in spreadsheet application
+3. For each row, open the `image_path` to review the scene/bounding boxes
+4. Fill in `manual_verdict` column: `correct`, `incorrect`, or `partial`
+5. Add any notes in `notes` column
+6. Calculate accuracy: `correct_count / total_count * 100`
+
+**Success Criteria:**
+- **Describe Mode:** MLLM generates text description relevant to visible objects
+- **Act Mode:** MLLM correctly identifies target object AND bounding box encompasses the correct object
+
+**Implementation:** [accuracy_tracker.py](../src/ELMiRA/scripts/v2/utils/accuracy_tracker.py)
+
 ---
 
 ## 6. Development Branches

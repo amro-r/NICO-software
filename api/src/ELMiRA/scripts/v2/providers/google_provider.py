@@ -46,7 +46,7 @@ class GoogleProvider(BaseMLLMProvider):
     
     # Gemini 3 Flash - multimodal model with vision capabilities
     DEFAULT_MODEL = "gemini-3-flash-preview"
-    MAX_HISTORY_TURNS = 10  # Limit history to prevent token overflow
+    MAX_HISTORY_TURNS = 20  # Limit history to prevent token overflow
     
     # API endpoint
     API_BASE = "https://generativelanguage.googleapis.com/v1beta"

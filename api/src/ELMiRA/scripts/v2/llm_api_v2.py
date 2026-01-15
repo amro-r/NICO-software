@@ -44,6 +44,10 @@ from utils.latency_tracker import (
     LatencyTracker, OperationType,
     init_tracker, get_tracker, shutdown_tracker
 )
+from utils.accuracy_tracker import (
+    AccuracyTracker,
+    init_accuracy_tracker, get_accuracy_tracker, shutdown_accuracy_tracker
+)
 
 
 class MLLMGateway:
@@ -73,6 +77,10 @@ class MLLMGateway:
         self.track_latency = rospy.get_param("~track_latency", False)
         self.latency_log_dir = rospy.get_param("~latency_log_dir", "")
         
+        # Accuracy tracking configuration (for benchmarking vs baseline 46.67% accuracy)
+        self.track_accuracy = rospy.get_param("~track_accuracy", False)
+        self.accuracy_log_dir = rospy.get_param("~accuracy_log_dir", "")
+        
         # Get API key from environment
         self.api_key = self._get_api_key()
         
@@ -84,6 +92,14 @@ class MLLMGateway:
         self.latency_tracker = init_tracker(
             enabled=self.track_latency,
             log_dir=self.latency_log_dir if self.latency_log_dir else None,
+            provider=self.provider_name,
+            model=self.provider.model if self.provider else "unknown",
+        )
+        
+        # Initialize accuracy tracker (for benchmarking accuracy vs 46.67% baseline)
+        self.accuracy_tracker = init_accuracy_tracker(
+            enabled=self.track_accuracy,
+            log_dir=self.accuracy_log_dir if self.accuracy_log_dir else None,
             provider=self.provider_name,
             model=self.provider.model if self.provider else "unknown",
         )
@@ -159,6 +175,8 @@ class MLLMGateway:
         Handle chat request (text only, no image).
         
         Service: mllm_chat / llm_chat (v1 compat)
+        
+        Used for SPEAK mode - captures knowledge/conversation accuracy.
         """
         rospy.loginfo(f"Chat request: {request.prompt[:100]}...")
         
@@ -185,6 +203,20 @@ class MLLMGateway:
                     input_length=len(request.prompt),
                     output_length=len(response.response_json),
                 )
+                
+                # Track accuracy for SPEAK mode (no image)
+                if self.accuracy_tracker and self.accuracy_tracker.enabled:
+                    robot_output = self._extract_robot_output(response.response_json)
+                    self.accuracy_tracker.record(
+                        asr_transcript=request.prompt,
+                        mode_selected="speak",
+                        image_path="",  # No image for speak mode
+                        robot_output=robot_output,
+                        response_json=response.response_json,
+                        success=True,
+                        has_bounding_boxes=False,
+                    )
+                
                 return PromptTextLLMResponse(response=response.response_json)
             else:
                 rospy.logerr(f"Chat failed: {response.error_message}")
@@ -196,6 +228,20 @@ class MLLMGateway:
                     input_length=len(request.prompt),
                     notes=response.error_message,
                 )
+                
+                # Track accuracy failure
+                if self.accuracy_tracker and self.accuracy_tracker.enabled:
+                    self.accuracy_tracker.record(
+                        asr_transcript=request.prompt,
+                        mode_selected="speak",
+                        image_path="",
+                        robot_output="",
+                        response_json="",
+                        success=False,
+                        failure_reason=response.error_message,
+                        has_bounding_boxes=False,
+                    )
+                
                 # Return error as JSON for backward compatibility
                 error_response = json.dumps({
                     "actions": [
@@ -229,6 +275,8 @@ class MLLMGateway:
         Handle vision request (chat with current camera image).
         
         Service: mllm_vision / llm_vision (v1 compat)
+        
+        Used for DESCRIBE mode - captures scene description accuracy.
         """
         rospy.loginfo("Vision request received")
         
@@ -237,6 +285,15 @@ class MLLMGateway:
         try:
             # Get current camera frame
             image = self._get_image()
+            
+            # Save image for accuracy tracking (describe mode - no bboxes)
+            image_path = ""
+            if self.accuracy_tracker and self.accuracy_tracker.enabled:
+                image_path = self.accuracy_tracker.save_image(
+                    image=image,
+                    prefix="describe",
+                    detections=None,
+                )
             
             response = self.provider.chat(
                 prompt="Describe what you see on the table and respond with appropriate actions.",
@@ -257,6 +314,21 @@ class MLLMGateway:
                     success=True,
                     output_length=len(response.response_json),
                 )
+                
+                # Track accuracy for DESCRIBE mode
+                if self.accuracy_tracker and self.accuracy_tracker.enabled:
+                    # Extract description text from response JSON
+                    robot_output = self._extract_robot_output(response.response_json)
+                    self.accuracy_tracker.record(
+                        asr_transcript="(vision service call)",
+                        mode_selected="describe",
+                        image_path=image_path,
+                        robot_output=robot_output,
+                        response_json=response.response_json,
+                        success=True,
+                        has_bounding_boxes=False,
+                    )
+                
                 return PromptVisionLLMResponse(response=response.response_json)
             else:
                 rospy.logerr(f"Vision failed: {response.error_message}")
@@ -267,6 +339,20 @@ class MLLMGateway:
                     success=False,
                     notes=response.error_message,
                 )
+                
+                # Track accuracy failure
+                if self.accuracy_tracker and self.accuracy_tracker.enabled:
+                    self.accuracy_tracker.record(
+                        asr_transcript="(vision service call)",
+                        mode_selected="describe",
+                        image_path=image_path,
+                        robot_output="",
+                        response_json="",
+                        success=False,
+                        failure_reason=response.error_message,
+                        has_bounding_boxes=False,
+                    )
+                
                 error_response = json.dumps({
                     "actions": [
                         {"action": "speak", "text": "Sorry, I had trouble seeing the table."}
@@ -454,11 +540,16 @@ class MLLMGateway:
         This eliminates the two-stage disconnect between action parsing and detection.
         
         Captures a FRESH frame (not cached) for accurate grounding.
+        
+        Used for ACT mode - captures action + localization accuracy with bounding boxes.
         """
         rospy.loginfo(f"Grounded chat request: {request.prompt[:100]}...")
         rospy.loginfo(f"Objects to detect: {request.detect_objects}")
         
         start_time = time.time()
+        
+        # Store image for accuracy tracking (will be annotated with bboxes later)
+        captured_image = None
         
         try:
             # Capture FRESH frame for grounding (not cached)
@@ -466,6 +557,7 @@ class MLLMGateway:
             image = None
             if request.include_image:
                 image = self._get_fresh_image()
+                captured_image = image.copy()  # Keep copy for accuracy tracking
             
             # Use temperature from request or default
             temperature = request.temperature if request.temperature > 0 else self.temperature
@@ -511,6 +603,41 @@ class MLLMGateway:
                     detections_count=len(ros_detections),
                 )
                 
+                # Track accuracy for ACT mode with bounding boxes
+                if self.accuracy_tracker and self.accuracy_tracker.enabled and captured_image is not None:
+                    # Save image WITH bounding box overlay
+                    image_path = self.accuracy_tracker.save_image(
+                        image=captured_image,
+                        prefix="act",
+                        detections=ros_detections,
+                    )
+                    
+                    # Parse action and target from response
+                    action_type, target_object = self._extract_action_info(response.response_json)
+                    
+                    # Find selected detection (first one matching target)
+                    selected_det = None
+                    for det in ros_detections:
+                        if target_object.lower() in det.label.lower():
+                            selected_det = det
+                            break
+                    if not selected_det and ros_detections:
+                        selected_det = ros_detections[0]  # Default to first
+                    
+                    self.accuracy_tracker.record(
+                        asr_transcript=request.prompt,
+                        mode_selected="act",
+                        image_path=image_path,
+                        robot_output=f"Action: {action_type} on {target_object}",
+                        response_json=response.response_json,
+                        success=True,
+                        action_type=action_type,
+                        target_object=target_object,
+                        detections=ros_detections,
+                        selected_detection=selected_det,
+                        has_bounding_boxes=True,
+                    )
+                
                 return PromptMLLMWithGroundingResponse(
                     response_json=response.response_json,
                     detections=ros_detections,
@@ -528,6 +655,27 @@ class MLLMGateway:
                     input_length=len(request.prompt),
                     notes=response.error_message,
                 )
+                
+                # Track accuracy failure
+                if self.accuracy_tracker and self.accuracy_tracker.enabled:
+                    image_path = ""
+                    if captured_image is not None:
+                        image_path = self.accuracy_tracker.save_image(
+                            image=captured_image,
+                            prefix="act_failed",
+                            detections=None,
+                        )
+                    self.accuracy_tracker.record(
+                        asr_transcript=request.prompt,
+                        mode_selected="act",
+                        image_path=image_path,
+                        robot_output="",
+                        response_json="",
+                        success=False,
+                        failure_reason=response.error_message,
+                        has_bounding_boxes=False,
+                    )
+                
                 return PromptMLLMWithGroundingResponse(
                     response_json="",
                     detections=[],
@@ -568,6 +716,43 @@ class MLLMGateway:
         except Exception as e:
             rospy.logwarn(f"Failed to publish detections: {e}")
     
+    def _extract_robot_output(self, response_json: str) -> str:
+        """
+        Extract the robot's spoken output from LLM response JSON.
+        
+        Looks for 'text' field in speak/describe actions.
+        """
+        try:
+            data = json.loads(response_json)
+            actions = data.get("actions", [])
+            for action in actions:
+                if action.get("action") in ("speak", "describe"):
+                    return action.get("text", "")
+            # Fallback: return first 200 chars of response
+            return response_json[:200]
+        except Exception:
+            return response_json[:200] if response_json else ""
+    
+    def _extract_action_info(self, response_json: str) -> tuple:
+        """
+        Extract action type and target object from LLM response JSON.
+        
+        Returns:
+            Tuple of (action_type, target_object)
+        """
+        try:
+            data = json.loads(response_json)
+            actions = data.get("actions", [])
+            for action in actions:
+                if action.get("action") == "act":
+                    return (
+                        action.get("type", "unknown"),
+                        action.get("object", "unknown"),
+                    )
+            return ("", "")
+        except Exception:
+            return ("", "")
+    
     def _get_fresh_image(self) -> np.ndarray:
         """
         Capture a fresh frame from the camera.
@@ -602,6 +787,10 @@ class MLLMGateway:
         # Print latency benchmarking summary
         if self.latency_tracker:
             shutdown_tracker()
+        
+        # Print accuracy benchmarking summary
+        if self.accuracy_tracker:
+            shutdown_accuracy_tracker()
         
         # Stop image cache
         self.image_cache.stop()

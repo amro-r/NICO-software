@@ -24,6 +24,10 @@
     <arg name="track_latency" default="false" doc="Enable MLLM latency benchmarking (logs to ~/.elmira/latency_logs/)"/>
     <arg name="latency_log_dir" default="" doc="Custom directory for latency logs (optional)"/>
     
+    <!-- Accuracy Benchmarking -->
+    <arg name="track_accuracy" default="false" doc="Enable accuracy benchmarking with image capture (logs to ~/.elmira/accuracy_logs/)"/>
+    <arg name="accuracy_log_dir" default="" doc="Custom directory for accuracy logs (optional)"/>
+    
     <!-- Speech ASR parameters - adjust based on your microphone/environment -->
     <arg name="energy_silence" default="2000" doc="Energy level for silence (increase for noisy environments)"/>
     <arg name="energy_start" default="4000" doc="Energy threshold to start speech detection"/>
@@ -55,6 +59,8 @@
         <param name="image_topic" value="$(arg image_topic)"/>
         <param name="track_latency" value="$(arg track_latency)"/>
         <param name="latency_log_dir" value="$(arg latency_log_dir)"/>
+        <param name="track_accuracy" value="$(arg track_accuracy)"/>
+        <param name="accuracy_log_dir" value="$(arg accuracy_log_dir)"/>
     </node>
     
     <!-- OWLv2 Object Localiser (optional fallback) -->
@@ -81,5 +87,6 @@
     <param name="/mllm_provider" value="$(arg mllm_provider)"/>
     <param name="/use_grounded_action_planning" value="$(arg use_grounded_action_planning)"/>
     <param name="/track_latency" value="$(arg track_latency)"/>
+    <param name="/track_accuracy" value="$(arg track_accuracy)"/>
 </launch>
 

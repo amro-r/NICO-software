@@ -50,5 +50,6 @@ api/examples/nicoemotionrecognition/tts_storage
 
 # log file
 *.log
+/logs/
 
 AGENTS.md
