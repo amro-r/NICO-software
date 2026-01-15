@@ -16,14 +16,19 @@ from elmira.msg import DetectedObject
 
 # v2 MLLM configuration - read from ROS params
 def get_mllm_config():
-    """Get MLLM configuration from ROS params."""
+    """Get MLLM configuration from ROS params.
+    
+    When use_mllm=True, always uses MLLM for detection (no OWLv2 dependency).
+    Advanced MLLMs (GPT-5.2, Gemini 3 Flash) provide superior detection accuracy.
+    """
     use_mllm = rospy.get_param("/use_mllm", False)
     use_mllm_grounding = rospy.get_param("/use_mllm_grounding", False)
     use_grounded_action_planning = rospy.get_param("/use_grounded_action_planning", True)
     
     if use_mllm:
         visibility_service = "mllm_visibility"
-        detection_service = "mllm_detect" if use_mllm_grounding else "object_detector"
+        # Always use MLLM for detection - no OWLv2 fallback
+        detection_service = "mllm_detect"
         grounded_chat_service = "mllm_grounded_chat"
     else:
         visibility_service = "llm_object_visibility"
@@ -52,15 +57,15 @@ class ObjectSelector(smach.State):
         )
         self.workspace = np.array(
             [
-                [0.0396, 0.7160],
-                [0.2021, 0.3444],
-                [0.7646, 0.3278],
-                [0.9448, 0.7313],
-                [0.8162, 0.8069],
-                [0.6391, 0.8632],
-                [0.4380, 0.8757],
-                [0.2599, 0.8375],
-                [0.1328, 0.7771],
+                [0.0396, 0.5600],
+                [0.2021, 0.2000],
+                [0.7646, 0.1800],
+                [0.9448, 0.5800],
+                [0.8162, 0.6500],
+                [0.6391, 0.7200],
+                [0.4380, 0.7500],
+                [0.2599, 0.7000],
+                [0.1328, 0.6200],
             ]
         )
 
@@ -338,9 +343,9 @@ class ActionTrajectory(smach.State):
 class ActionPlanner(smach.StateMachine):
     """Locates target object and plans motion trajectory for the requested action.
     
-    Supports both v1 (OWLv2) and v2 (MLLM) detection paths based on ROS params:
-    - /use_mllm: Use MLLM gateway
-    - /use_mllm_grounding: Use MLLM for object detection (vs OWLv2)
+    Detection paths based on ROS params:
+    - v1 (/use_mllm=false): Uses OWLv2 object detector
+    - v2 (/use_mllm=true): Always uses MLLM detection (GPT-5.2/Gemini 3 Flash)
     
     Supports bimanual manipulation with grasp/place actions.
     Hand control is signaled via hand_action output key.
@@ -363,7 +368,8 @@ class ActionPlanner(smach.StateMachine):
         # Get MLLM configuration
         mllm_config = get_mllm_config()
         detection_service = mllm_config["detection_service"]
-        detection_srv_type = DetectWithMLLM if mllm_config["use_mllm_grounding"] else DetectObjects
+        # Use MLLM detection service type when use_mllm is enabled (no OWLv2 fallback)
+        detection_srv_type = DetectWithMLLM if mllm_config["use_mllm"] else DetectObjects
         
         rospy.loginfo(f"ActionPlanner using detection service: {detection_service}")
         
@@ -681,15 +687,15 @@ class GroundedObjectSelector(smach.State):
             output_keys=["image_x", "image_y", "system_message"],
         )
         self.workspace = np.array([
-            [0.0396, 0.7160],
-            [0.2021, 0.3444],
-            [0.7646, 0.3278],
-            [0.9448, 0.7313],
-            [0.8162, 0.8069],
-            [0.6391, 0.8632],
-            [0.4380, 0.8757],
-            [0.2599, 0.8375],
-            [0.1328, 0.7771],
+            [0.0396, 0.5600],
+            [0.2021, 0.2000],
+            [0.7646, 0.1800],
+            [0.9448, 0.5800],
+            [0.8162, 0.6500],
+            [0.6391, 0.7200],
+            [0.4380, 0.7500],
+            [0.2599, 0.7000],
+            [0.1328, 0.6200],
         ])
     
     def within_workspace(self, x, y):

@@ -53,17 +53,20 @@ class ImplicitCoordinateTransfer:
 class ImageCoordinateFilter:
     def __init__(
         self,
+        # Workspace polygon (normalized image coordinates)
+        # Updated to exclude robot body and extend forward reach
+        # Approx Y range: 0.18 (top) to 0.75 (bottom)
         workspace=torch.tensor(
             [
-                [0.0396, 0.7160],
-                [0.2021, 0.3444],
-                [0.7646, 0.3278],
-                [0.9448, 0.7313],
-                [0.8162, 0.8069],
-                [0.6391, 0.8632],
-                [0.4380, 0.8757],
-                [0.2599, 0.8375],
-                [0.1328, 0.7771],
+                [0.0396, 0.5600],  # Left-Mid
+                [0.2021, 0.2000],  # Top-Left (Extended forward)
+                [0.7646, 0.1800],  # Top-Right (Extended forward)
+                [0.9448, 0.5800],  # Right-Mid
+                [0.8162, 0.6500],  # Bottom-Right
+                [0.6391, 0.7200],  # Bottom-Right
+                [0.4380, 0.7500],  # Bottom-Center (Excluded body/neck)
+                [0.2599, 0.7000],  # Bottom-Left
+                [0.1328, 0.6200],  # Bottom-Left
             ]
         ),
     ):

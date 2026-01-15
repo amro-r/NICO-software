@@ -426,7 +426,7 @@ def main():
                     ),
                     transitions={
                         "succeeded": "GROUNDED_PLAN_ACTION",
-                        "failed": "system_out",  # Fallback could go to PLAN_ACTION_TRAJECTORY
+                        "failed": "PLAN_ACTION_TRAJECTORY",  # Fallback to separate MLLM detection
                     },
                 )
                 

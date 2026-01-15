@@ -20,16 +20,17 @@ class DetectionVisualizer:
     """Visualizes object detections on camera images."""
     
     # Workspace polygon (normalized image coordinates)
+    # Workspace polygon (normalized image coordinates)
     WORKSPACE = np.array([
-        [0.0396, 0.7160],
-        [0.2021, 0.3444],
-        [0.7646, 0.3278],
-        [0.9448, 0.7313],
-        [0.8162, 0.8069],
-        [0.6391, 0.8632],
-        [0.4380, 0.8757],
-        [0.2599, 0.8375],
-        [0.1328, 0.7771],
+        [0.0396, 0.5600],
+        [0.2021, 0.2000],
+        [0.7646, 0.1800],
+        [0.9448, 0.5800],
+        [0.8162, 0.6500],
+        [0.6391, 0.7200],
+        [0.4380, 0.7500],
+        [0.2599, 0.7000],
+        [0.1328, 0.6200],
     ])
     
     # Colors (BGR format for OpenCV)

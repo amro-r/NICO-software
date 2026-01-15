@@ -29,7 +29,7 @@ common:
 grounding:
   enabled: true
   confidence_threshold: 0.5
-  fallback_to_owlv2: true
+  fallback_to_owlv2: false  # Advanced MLLMs (GPT-5.2, Gemini 3 Flash) provide superior detection
 
 # Logging settings
 logging:

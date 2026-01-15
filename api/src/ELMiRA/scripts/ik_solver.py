@@ -18,7 +18,8 @@ class KinematicsServer:
         else:
             self.device = torch.device("cpu")
             rospy.logwarn("EvoIK using CPU (CUDA not available)")
-        # Left arm uses 4-joint URDF (no wrist) since wrist motors are not functional
+        # Left arm: 4 joints (shoulder z/y, arm x, elbow y) - wrist motors not connected
+        # but physical wrist exists, so arm can still point, push, and reach objects
         self.left_arm = EvoIK(
             join(urdf_dir, "nico_left_arm_no_wrist.urdf"), "left_tcp", device=self.device
         )
@@ -63,7 +64,7 @@ class KinematicsServer:
                 torch.tensor([pos.x, pos.y, pos.z]).to(self.device),
                 torch.tensor([quat.w, quat.x, quat.y, quat.z]).to(self.device),
                 initial_joints=initial_joints,
-                max_steps=100,
+                max_steps=200,  # Increased for better convergence
             )
             results.append(ik_result)
             # use solution as starting point for the next one

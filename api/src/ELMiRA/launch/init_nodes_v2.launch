@@ -13,9 +13,9 @@
     <!-- Arguments -->
     <arg name="mllm_provider" default="openai" doc="MLLM provider: openai or google"/>
     <arg name="mllm_model" default="" doc="Model name (empty for provider default)"/>
-    <arg name="use_owlv2_fallback" default="false" doc="Launch OWLv2 as fallback"/>
-    <arg name="use_mllm_grounding" default="true" doc="Use MLLM for object detection"/>
-    <arg name="use_grounded_action_planning" default="true" doc="Use single MLLM call for action+detection"/>
+    <arg name="use_owlv2_fallback" default="false" doc="[LEGACY] Launch OWLv2 for v1 compatibility only"/>
+    <arg name="use_mllm_grounding" default="true" doc="Use MLLM for grounded action planning"/>
+    <arg name="use_grounded_action_planning" default="true" doc="Single MLLM call for action+detection (recommended)"/>
     <arg name="temperature" default="0.7" doc="LLM temperature"/>
     <arg name="image_topic" default="/nico/vision/right" doc="Camera topic"/>
     <arg name="json_path" default="$(find nicoros)/../../../json/nico_humanoid_upper_fixed.json" doc="Motor config JSON"/>
