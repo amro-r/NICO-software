@@ -1,0 +1,18 @@
+# ELMiRA v2 Dashboard - UI Dependencies
+# =====================================
+#
+# These packages are required for the Streamlit dashboard.
+# Install with: pip install -r requirements_ui.txt
+#
+# Note: ROS packages (rospy, cv_bridge, sensor_msgs) are provided
+# by the ROS environment sourced via activate.bash
+
+# Core UI framework
+streamlit>=1.28.0
+
+# Data handling and display
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Already installed in NICO env but listed for completeness:
+# opencv-python  # cv2 for image handling (provided by ROS)
