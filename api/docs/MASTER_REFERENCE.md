@@ -106,6 +106,11 @@ api/
 │   │   │   │   ├── action_parser.py
 │   │   │   │   ├── action_planner.py
 │   │   │   │   └── move_robot.py
+│   │   │   ├── ui/
+│   │   │   │   ├── elmira_v2_dashboard.py
+│   │   │   │   ├── run_elmira_v2_dashboard.sh
+│   │   │   │   ├── requirements_ui.txt
+│   │   │   │   └── README.md
 │   │   │   ├── v2/
 │   │   │   │   ├── config/
 │   │   │   │   ├── providers/
@@ -459,7 +464,41 @@ rosrun elmira state_machine.py
 rqt_image_view
 ```
 
-### 4.7 Environment Variables
+### 4.7 Streamlit Dashboard (Recommended)
+
+A developer-focused Streamlit UI is available for launching and monitoring ELMiRA v2 with a graphical interface.
+
+**Features:**
+- Configure all launch parameters via sidebar controls (provider, temperature, grounding options, ASR thresholds)
+- One-click launch of the full ELMiRA v2 stack
+- Separate button to start/stop the state machine
+- Live camera feed from `/elmira/debug/detections` showing workspace and bounding boxes
+- Dual terminal tabs for roslaunch and state_machine logs
+- Real-time latency and accuracy metrics display (when tracking enabled)
+- Emergency stop button to terminate all processes
+
+**Quick Start:**
+```bash
+cd api/src/ELMiRA/scripts/ui
+./run_elmira_v2_dashboard.sh
+```
+
+Then open `http://localhost:8501` in your browser.
+
+**Usage Workflow:**
+1. Configure settings in the sidebar (provider, model, temperature, etc.)
+2. Click "🚀 Launch ELMiRA v2" to start the ROS stack
+3. Wait for nodes to initialize (monitor in roslaunch tab)
+4. Click "🧠 Start State Machine" to begin the interaction loop
+5. Use "⏹️ Stop SM" to stop only the state machine
+6. Use "🛑 Emergency Stop" to terminate everything
+
+**Dependencies:**
+```bash
+pip install streamlit pandas
+```
+
+### 4.8 Environment Variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
